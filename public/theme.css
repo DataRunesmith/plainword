@@ -1,0 +1,123 @@
+:root[data-theme="legacy"] {
+  color-scheme: dark;
+  --paper: #04070e;
+  --bg: #04070e;
+  --raised: #09101e;
+  --card: #09101e;
+  --ink: #f5f3ee;
+  --text: #f5f3ee;
+  --muted: #91a8c6;
+  --line: rgba(137, 167, 207, 0.22);
+  --ordinary: #ff438b;
+  --ordinary-bg: rgba(213, 29, 203, 0.1);
+  --ordinary-line: rgba(255, 67, 139, 0.36);
+  --institution: #69bbff;
+  --institution-bg: rgba(45, 155, 255, 0.11);
+  --institution-line: rgba(45, 155, 255, 0.34);
+  --accent: #24e7e8;
+  --accent-bg: rgba(36, 231, 232, 0.08);
+  --gap: rgba(119, 87, 255, 0.09);
+  --gap-line: rgba(119, 87, 255, 0.34);
+  --warn: #ff438b;
+  --warn-bg: rgba(213, 29, 203, 0.1);
+  --focus: #24e7e8;
+  --danger: #ff438b;
+}
+:root[data-theme="legacy"] body {
+  background:
+    radial-gradient(circle at 14% 8%, rgba(36, 231, 232, 0.11), transparent 27rem),
+    radial-gradient(circle at 86% 18%, rgba(213, 29, 203, 0.1), transparent 30rem),
+    radial-gradient(circle at 50% 100%, rgba(45, 155, 255, 0.08), transparent 35rem),
+    linear-gradient(180deg, #050912 0%, #03060c 100%);
+}
+:root[data-theme="legacy"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.025) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(to bottom, #000, transparent 82%);
+}
+:root[data-theme="forest"] {
+  color-scheme: dark;
+  --paper: #080b09;
+  --bg: #080b09;
+  --raised: #111713;
+  --card: #111713;
+  --ink: #f3f5f1;
+  --text: #f3f5f1;
+  --muted: #a6b1aa;
+  --line: #263129;
+  --ordinary: #e4ca91;
+  --ordinary-bg: #2b2417;
+  --ordinary-line: #5b4b2a;
+  --institution: #a6bec9;
+  --institution-bg: #152129;
+  --institution-line: #344852;
+  --accent: #a6bec9;
+  --accent-bg: #152129;
+  --gap: #171f19;
+  --gap-line: #3b493e;
+  --warn: #e4ca91;
+  --warn-bg: #2b2417;
+  --focus: #e4ca91;
+  --danger: #e1a49b;
+}
+:root[data-theme="blackout"] {
+  color-scheme: dark;
+  --paper: #000;
+  --bg: #000;
+  --raised: #070707;
+  --card: #070707;
+  --ink: #f6f6f3;
+  --text: #f6f6f3;
+  --muted: #b5b5b5;
+  --line: #252525;
+  --ordinary: #ddddcf;
+  --ordinary-bg: #11110e;
+  --ordinary-line: #3a3a32;
+  --institution: #aeb4b8;
+  --institution-bg: #0d0f10;
+  --institution-line: #34383b;
+  --accent: #aeb4b8;
+  --accent-bg: #0d0f10;
+  --gap: #0d0d0d;
+  --gap-line: #333;
+  --warn: #ddddcf;
+  --warn-bg: #11110e;
+  --focus: #dedede;
+  --danger: #c99a9a;
+}
+.theme-row {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 1.2rem;
+}
+.theme-control {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.theme-control select {
+  min-width: 118px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 0.45rem 0.6rem;
+  background: var(--raised, var(--card));
+  color: var(--ink, var(--text));
+  font: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
+.theme-control select:focus-visible {
+  outline: 2px solid var(--focus, var(--accent));
+  outline-offset: 2px;
+}

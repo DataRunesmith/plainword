@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="sv" data-theme="legacy">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#04070e" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/app-icon-192.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="/app-icon-192.png" />
+    <title>Varför Plainword?</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: #f4f5f1;
+        --raised: #fff;
+        --ink: #1b2422;
+        --muted: #56605b;
+        --line: #d8dad3;
+        --accent: #2d3f69;
+        --accent-bg: #e8ebf3;
+        --warn: #875c1d;
+        --warn-bg: #f5ead3;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #12161a;
+          --raised: #191e23;
+          --ink: #e9e7df;
+          --muted: #a9afa8;
+          --line: #2a3138;
+          --accent: #9aaddc;
+          --accent-bg: #1c2436;
+          --warn: #e0ad57;
+          --warn-bg: #2b2417;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        line-height: 1.65;
+      }
+      .wrap {
+        max-width: 760px;
+        margin: auto;
+        padding: 3rem 1.3rem 5rem;
+      }
+      a {
+        color: var(--accent);
+        text-underline-offset: 2px;
+      }
+      .eyebrow {
+        font:
+          700 0.72rem ui-monospace,
+          "SF Mono",
+          Menlo,
+          monospace;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 1.4rem;
+      }
+      h1,
+      h2 {
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        font-weight: 400;
+        letter-spacing: -0.01em;
+      }
+      h1 {
+        font-size: clamp(2.1rem, 6vw, 3rem);
+        line-height: 1.08;
+        margin: 0 0 1.3rem;
+      }
+      h2 {
+        font-size: 1.45rem;
+        margin: 2.3rem 0 0.7rem;
+      }
+      p {
+        font-size: 1.03rem;
+        margin: 0 0 1rem;
+      }
+      .callout {
+        padding: 1rem 1.1rem;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: var(--raised);
+        margin: 1.5rem 0;
+      }
+      .method {
+        background: var(--accent-bg);
+        border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+      }
+      .warning {
+        background: var(--warn-bg);
+        border-color: color-mix(in srgb, var(--warn) 35%, var(--line));
+      }
+      .method ol,
+      .method ul {
+        margin: 0.6rem 0 0.1rem;
+        padding-left: 1.3rem;
+      }
+      .method li {
+        margin: 0.45rem 0;
+      }
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.2rem;
+        border-top: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 0.86rem;
+      }
+      @media (max-width: 620px) {
+        html {
+          font-size: 17px;
+        }
+        .wrap {
+          padding: 2rem 1rem 4rem;
+        }
+      }
+    </style>
+    <link rel="stylesheet" href="/theme.css" />
+    <script src="/theme.js" defer></script>
+    \n
+    <script src="/pwa.js" defer></script>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="theme-row">
+        <label class="theme-control" for="theme-select"
+          ><span>Tema</span
+          ><select id="theme-select" aria-label="Tema">
+            <option value="legacy">Legacy</option>
+            <option value="forest">__SITE_FAMILY__</option>
+            <option value="blackout">Blackout</option>
+          </select></label
+        >
+      </div>
+      <div class="eyebrow"><a href="/">__PUBLIC_HOST__</a> · metod och syfte</div>
+      <h1>Varför finns Plainword?</h1>
+
+      <p>
+        Offentliga institutioner använder ofta ord som också finns i vanligt svenskt språk. I
+        juridik, myndighetsutövning och officiell statistik kan samma ord eller fras samtidigt
+        fungera som en teknisk term, en beslutströskel eller en särskild klassificering.
+      </p>
+
+      <p>
+        Det är inte i sig konstigt att fackspråk finns. Problemet uppstår när en mottagare rimligen
+        kan läsa orden enligt deras etablerade allmänspråkliga betydelse medan institutionen
+        använder dem på ett mer avgränsat, utvidgat eller graderat sätt — utan att skillnaden
+        framgår av själva orden.
+      </p>
+
+      <div class="callout method">
+        <strong>Ordboken är jämförelsens språkliga baslinje.</strong>
+        <ol>
+          <li>
+            Visa den allmänspråkliga betydelsen från en redovisad ordbok eller annan etablerad
+            språkkälla.
+          </li>
+          <li>Visa institutionens faktiska användning från lag, myndighet eller domstol.</li>
+          <li>Beskriv bara den skillnad som faktiskt kan härledas ur de två källorna.</li>
+        </ol>
+      </div>
+
+      <p>
+        Institutionens definition används alltså inte för att skriva om vad ordet betyder i allmän
+        svenska. Plainword visar i stället när den offentliga användningen av samma ord kräver en
+        annan läsning än den språkliga baslinjen.
+      </p>
+
+      <h2>Vad kvalificerar en post?</h2>
+      <div class="callout method">
+        <strong>En term ska klara hela kvalitetsgrinden.</strong>
+        <ul>
+          <li>
+            Samma ord eller uttryck ska användas både i allmänspråket och av en offentlig
+            institution.
+          </li>
+          <li>
+            Skillnaden ska vara materiell: den ska ändra, utvidga eller begränsa vad
+            ordboksbetydelsen kommunicerar — inte bara lägga till vanlig fackprecision.
+          </li>
+          <li>
+            Jämförelsen får inte bygga på vad redaktionen antar att människor intuitivt tänker. Den
+            allmänspråkliga sidan måste kunna visas i språkkällan.
+          </li>
+          <li>
+            Om institutionens användning redan ryms i en relevant betydelse som ordboken redovisar
+            ska posten inte publiceras som språkglapp.
+          </li>
+          <li>
+            En statistisk mätregel, registermodell eller administrativ avgränsning är inte i sig ett
+            språkglapp. Själva ordets betydelse måste faktiskt dras åt ett annat håll.
+          </li>
+          <li>
+            Skillnaden ska kunna spela roll för hur en rättighet, skyldighet, myndighetsbedömning
+            eller regel förstås.
+          </li>
+          <li>
+            Båda sidorna ska kunna beläggas med primärkällor eller tydliga auktoritativa källor. Om
+            belägget är svagt publiceras inte posten.
+          </li>
+        </ul>
+      </div>
+
+      <h2>Vad sidan inte ska göra</h2>
+      <p>
+        Plainword ska inte fyllas med juridiska definitioner bara för att de är tekniska. Att ett
+        brott, bidrag eller tillstånd har flera rekvisit är normalt och är inte i sig ett
+        språkglapp. En post måste visa att själva ordvalet kan leda till en annan betydelse än den
+        som institutionen faktiskt använder.
+      </p>
+
+      <p>
+        Sidan ska inte heller påstå vad “folk tror” utan belägg. Sådana påståenden kräver
+        undersökningar av människors faktiska uppfattningar. Därför jämför Plainword dokumenterad
+        allmänsvenska med dokumenterad offentlig användning.
+      </p>
+
+      <p>
+        Plainword slår inte fast att en juridisk eller administrativ betydelse är ogiltig bara för
+        att den avviker från ordboken. Poängen är att göra avvikelsen synlig, så att läsaren kan
+        förstå vilket språk myndigheten faktiskt använder.
+      </p>
+
+      <h2>Varför källorna måste synas</h2>
+      <p>
+        Ord som “skälig”, “sannolik”, “särskild” och “synnerlig” kan låta självförklarande. I
+        rättsliga sammanhang kan de däremot ingå i graderade trösklar vars konkreta innebörd bestäms
+        av den aktuella regeln, förarbeten och rättstillämpning. Då måste både den språkliga
+        betydelsen och den institutionella användningen kunna kontrolleras.
+      </p>
+
+      <p>
+        Varje publicerad post ska därför ha minst en språkkälla och en institutionell källa. Om en
+        källa saknas eller jämförelsen inte håller vid kontroll ska posten inte presenteras som
+        färdig.
+      </p>
+
+      <div class="callout warning">
+        <strong>Status:</strong> Den publika listan är källbelagd men är inte juridisk rådgivning.
+        Enskilda poster kan behöva uppdateras när lag eller myndighetsdefinitioner ändras.
+      </div>
+
+      <h2>Det demokratiska perspektivet</h2>
+      <p>
+        Begripligt myndighetsspråk handlar inte bara om enklare formuleringar. När ett offentligt
+        organ använder ett vardagligt ord som teknisk term behöver medborgaren kunna se vilken
+        betydelse som faktiskt används och på vilken grund. Annars kan samma mening vara språkligt
+        begriplig men ändå förmedla något annat än den dokumenterade allmänspråkliga betydelsen.
+      </p>
+
+      <p>
+        Plainword är tänkt som ett praktiskt sätt att göra den jämförelsen möjlig, term för term,
+        med synliga källor på båda sidor.
+      </p>
+
+      __RELATED_SITE_HTML__
+
+      <footer><a href="/">← Tillbaka till jämförelserna</a></footer>
+    </main>
+  </body>
+</html>

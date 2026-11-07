@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="sv" data-theme="legacy">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    \n
+    <meta name="theme-color" content="#04070e" />
+    \n
+    <link rel="manifest" href="/site.webmanifest" />
+    \n
+    <link rel="icon" type="image/png" sizes="192x192" href="/app-icon-192.png" />
+    \n
+    <link rel="apple-touch-icon" sizes="192x192" href="/app-icon-192.png" />
+    <title>Plainword — när samma ord får en annan betydelse</title>
+    <meta
+      name="description"
+      content="Jämför ordens allmänspråkliga betydelse med hur myndigheter, domstolar och lagstiftning använder samma uttryck."
+    />
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: #f4f5f1;
+        --raised: #fff;
+        --ink: #1b2422;
+        --muted: #56605b;
+        --line: #d8dad3;
+        --ordinary: #875c1d;
+        --ordinary-bg: #f5ead3;
+        --ordinary-line: #dec995;
+        --institution: #2d3f69;
+        --institution-bg: #e8ebf3;
+        --institution-line: #c3cbe0;
+        --gap: #fff7e7;
+        --gap-line: #e5c880;
+        --focus: #2d3f69;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #12161a;
+          --raised: #191e23;
+          --ink: #e9e7df;
+          --muted: #a9afa8;
+          --line: #2a3138;
+          --ordinary: #e0ad57;
+          --ordinary-bg: #2b2417;
+          --ordinary-line: #514120;
+          --institution: #9aaddc;
+          --institution-bg: #1c2436;
+          --institution-line: #39496c;
+          --gap: #21190e;
+          --gap-line: #4e3e1d;
+          --focus: #9aaddc;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        line-height: 1.55;
+      }
+      a {
+        color: var(--institution);
+        text-underline-offset: 2px;
+      }
+      button,
+      input,
+      textarea,
+      select {
+        font: inherit;
+      }
+      .wrap {
+        max-width: 980px;
+        margin: auto;
+        padding: 3rem 1.3rem 5rem;
+      }
+      .eyebrow {
+        font:
+          700 0.72rem ui-monospace,
+          "SF Mono",
+          Menlo,
+          monospace;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+      h1,
+      h2 {
+        font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+        font-weight: 400;
+        letter-spacing: -0.01em;
+      }
+      h1 {
+        font-size: clamp(2.2rem, 6vw, 3.8rem);
+        line-height: 1.02;
+        margin: 0.2rem 0 1rem;
+        max-width: 16ch;
+      }
+      .lede {
+        font-size: 1.08rem;
+        max-width: 68ch;
+        color: var(--muted);
+        margin: 0 0 1.2rem;
+      }
+      .principle {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1px;
+        background: var(--line);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 1.8rem 0;
+      }
+      .principle > div {
+        padding: 1rem 1.1rem;
+        background: var(--raised);
+      }
+      .principle strong {
+        display: block;
+        font-size: 0.76rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 0.35rem;
+      }
+      .status {
+        padding: 0.85rem 1rem;
+        border: 1px solid var(--gap-line);
+        background: var(--gap);
+        border-radius: 8px;
+        font-size: 0.88rem;
+        margin: 1.3rem 0 2rem;
+      }
+      .controls {
+        display: flex;
+        gap: 0.7rem;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 1rem 0;
+        border-top: 1px solid var(--line);
+        border-bottom: 1px solid var(--line);
+      }
+      #search {
+        flex: 1 1 280px;
+        min-width: 0;
+        padding: 0.72rem 0.9rem;
+        border: 1px solid var(--line);
+        background: var(--raised);
+        color: var(--ink);
+        border-radius: 7px;
+      }
+      #search:focus-visible,
+      .filter:focus-visible,
+      .source-link:focus-visible,
+      button:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible,
+      select:focus-visible {
+        outline: 2px solid var(--focus);
+        outline-offset: 2px;
+      }
+      .filters {
+        display: flex;
+        gap: 0.4rem;
+        overflow: auto;
+      }
+      .filter {
+        border: 1px solid var(--line);
+        background: var(--raised);
+        color: var(--muted);
+        padding: 0.55rem 0.7rem;
+        border-radius: 7px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .filter.active {
+        background: var(--ink);
+        color: var(--paper);
+        border-color: var(--ink);
+      }
+      .count {
+        font-size: 0.85rem;
+        color: var(--muted);
+        margin: 1rem 0;
+      }
+      .card {
+        background: var(--raised);
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        margin: 0 0 1.2rem;
+        overflow: hidden;
+      }
+      .card-head {
+        padding: 1.15rem 1.25rem 0.9rem;
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        align-items: baseline;
+        flex-wrap: wrap;
+      }
+      .term {
+        font-size: 1.55rem;
+        margin: 0;
+      }
+      .area {
+        font:
+          700 0.67rem ui-monospace,
+          "SF Mono",
+          Menlo,
+          monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .compare {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+      }
+      .panel {
+        padding: 1rem 1.25rem 1.15rem;
+        border-top: 3px solid;
+      }
+      .panel.ordinary {
+        background: var(--ordinary-bg);
+        border-color: var(--ordinary-line);
+      }
+      .panel.institution {
+        background: var(--institution-bg);
+        border-color: var(--institution-line);
+        border-left: 1px solid var(--line);
+      }
+      .label {
+        font:
+          700 0.69rem ui-monospace,
+          "SF Mono",
+          Menlo,
+          monospace;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 0.45rem;
+      }
+      .ordinary .label {
+        color: var(--ordinary);
+      }
+      .institution .label {
+        color: var(--institution);
+      }
+      .panel p {
+        margin: 0 0 0.75rem;
+        font-size: 0.96rem;
+      }
+      .source-link {
+        font-size: 0.8rem;
+        display: inline-block;
+      }
+      .difference {
+        padding: 0.9rem 1.25rem;
+        background: var(--gap);
+        border-top: 1px solid var(--gap-line);
+        font-size: 0.92rem;
+      }
+      .note {
+        padding: 0.75rem 1.25rem 1rem;
+        color: var(--muted);
+        font-size: 0.82rem;
+        white-space: pre-wrap;
+      }
+      .empty {
+        padding: 3rem 1rem;
+        text-align: center;
+        color: var(--muted);
+      }
+      .contribute {
+        margin-top: 2.2rem;
+        border: 1px dashed var(--line);
+        border-radius: 10px;
+        padding: 1.1rem 1.2rem;
+        display: flex;
+        gap: 1rem;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      .contribute p {
+        margin: 0;
+        max-width: 60ch;
+      }
+      .btn {
+        border: 1px solid var(--ink);
+        background: transparent;
+        color: var(--ink);
+        padding: 0.6rem 0.9rem;
+        border-radius: 7px;
+        cursor: pointer;
+      }
+      .btn.primary {
+        background: var(--institution);
+        border-color: var(--institution);
+        color: #fff;
+      }
+      footer {
+        margin-top: 3rem;
+        padding-top: 1.4rem;
+        border-top: 1px solid var(--line);
+        font-size: 0.83rem;
+        color: var(--muted);
+      }
+      dialog {
+        max-width: 620px;
+        width: calc(100% - 2rem);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--raised);
+        color: var(--ink);
+        padding: 0;
+        box-shadow: 0 20px 70px #0006;
+      }
+      dialog::backdrop {
+        background: #0008;
+      }
+      .dialog-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.2rem;
+        border-bottom: 1px solid var(--line);
+      }
+      .dialog-head h2 {
+        font-size: 1.4rem;
+        margin: 0;
+      }
+      .close {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        font-size: 1.2rem;
+        cursor: pointer;
+      }
+      form {
+        padding: 1.1rem 1.2rem 1.3rem;
+        display: grid;
+        gap: 0.85rem;
+      }
+      .field {
+        display: grid;
+        gap: 0.35rem;
+      }
+      .field span {
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+      .field small {
+        color: var(--muted);
+      }
+      .field input,
+      .field textarea,
+      .field select {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: var(--paper);
+        color: var(--ink);
+        border-radius: 7px;
+        padding: 0.65rem 0.75rem;
+      }
+      .actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 0.6rem;
+        margin-top: 0.3rem;
+      }
+      .form-message {
+        font-size: 0.86rem;
+        padding: 0.65rem 0.75rem;
+        border-radius: 7px;
+        background: var(--gap);
+        border: 1px solid var(--gap-line);
+      }
+      @media (max-width: 700px) {
+        html {
+          font-size: 17px;
+        }
+        .wrap {
+          padding: 2rem 1rem 4rem;
+        }
+        .principle,
+        .compare {
+          grid-template-columns: 1fr;
+        }
+        .panel.institution {
+          border-left: 0;
+        }
+        .controls {
+          align-items: stretch;
+        }
+        .filters {
+          width: 100%;
+        }
+      }
+    </style>
+    <link rel="stylesheet" href="/theme.css" />
+    <script src="/theme.js" defer></script>
+    \n
+    <script src="/pwa.js" defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="theme-row">
+        <label class="theme-control" for="theme-select"
+          ><span>Tema</span
+          ><select id="theme-select" aria-label="Tema">
+            <option value="legacy">Legacy</option>
+            <option value="forest">__SITE_FAMILY__</option>
+            <option value="blackout">Blackout</option>
+          </select></label
+        >
+      </div>
+      <div class="eyebrow">__PUBLIC_HOST__ · <a href="/varfor">varför?</a></div>
+      <h1>När samma ord får en annan betydelse</h1>
+      <p class="lede">
+        Plainword jämför dokumenterad allmänsvenska med dokumenterad myndighets- och
+        rättsanvändning. Sidan ska inte gissa vad människor tror. Den ska visa vad en språkkälla
+        säger, vad institutionen säger och var betydelserna faktiskt skiljer sig.
+      </p>
+      <section class="principle" aria-label="Så läser du sidan">
+        <div><strong>Ordbokens betydelse</strong>En kort parafras av en redovisad språkkälla.</div>
+        <div>
+          <strong>Institutionens användning</strong>En kort parafras av lag, förarbete, domstol
+          eller myndighet.
+        </div>
+      </section>
+      <div class="status">
+        <strong>Källbelagda poster.</strong> Alla publika termer läses från D1 och har granskats
+        före publicering. Juridisk sakkontroll av innehållet återstår fortfarande.
+      </div>
+      <div class="controls">
+        <input
+          id="search"
+          type="search"
+          placeholder="Sök term eller rättsområde…"
+          autocomplete="off"
+          aria-label="Sök"
+        />
+        <div class="filters" id="filters" aria-label="Filtrera rättsområde"></div>
+      </div>
+      <p class="count" id="count"></p>
+      <section id="list" aria-live="polite"></section>
+      <section class="contribute">
+        <p>
+          <strong>Föreslå ett belägg.</strong> Ett publicerbart förslag måste innehålla både
+          allmänspråklig betydelse och myndighets-/juridisk användning. Källor bör anges i
+          källfältet.
+        </p>
+        <button class="btn" id="suggest" type="button">Föreslå term</button>
+      </section>
+      <footer>
+        Plainword är ett granskningsverktyg, inte juridisk rådgivning. Formuleringarna ska kunna
+        kontrolleras mot redovisade källor.
+      </footer>
+    </main>
+    <dialog id="proposal-dialog">
+      <div class="dialog-head">
+        <h2>Föreslå en term</h2>
+        <button class="close" id="close-dialog" type="button" aria-label="Stäng">×</button>
+      </div>
+      <form id="proposal-form">
+        <label class="field"
+          ><span>Term *</span><input name="term" required maxlength="200" /></label
+        ><label class="field"
+          ><span>Allmänspråklig betydelse *</span
+          ><textarea
+            name="foreslagen_vardagsbetydelse"
+            rows="3"
+            maxlength="4000"
+            required
+          ></textarea
+          ><small>Parafrasera en ordbok eller annan etablerad språkkälla.</small></label
+        ><label class="field"
+          ><span>Myndighetens/juridikens användning *</span
+          ><textarea
+            name="foreslagen_juridisk_definition"
+            rows="3"
+            maxlength="4000"
+            required
+          ></textarea></label
+        ><label class="field"
+          ><span>Källor och exempel</span
+          ><textarea
+            name="foreslagen_exempel"
+            rows="3"
+            maxlength="2000"
+            placeholder="Länka helst både språkkälla och institutionell källa."
+          ></textarea></label
+        ><label class="field"
+          ><span>Rättsområde</span
+          ><select name="foreslaget_rattsomrade" id="area-select">
+            <option value="">Vet ej / annat</option>
+          </select></label
+        ><label class="field"
+          ><span>Namn (valfritt)</span><input name="inskickare_namn" maxlength="200" /></label
+        ><label class="field"
+          ><span>Kommentar (valfritt)</span
+          ><textarea name="inskickare_kommentar" rows="2" maxlength="2000"></textarea>
+        </label>
+        <div
+          class="cf-turnstile"
+          data-sitekey="__TURNSTILE_SITE_KEY__"
+          data-action="term_submit"
+        ></div>
+        <p id="form-message" class="form-message" hidden></p>
+        <div class="actions">
+          <button class="btn" id="cancel" type="button">Avbryt</button
+          ><button class="btn primary" type="submit">Skicka förslag</button>
+        </div>
+      </form>
+    </dialog>
+    <script src="/app.js" defer></script>
+  </body>
+</html>

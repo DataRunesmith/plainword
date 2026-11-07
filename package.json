@@ -1,0 +1,13 @@
+{
+  "name": "plainword",
+  "version": "1.2.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "wrangler": "^4.157.0"
+  }
+}

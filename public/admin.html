@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="sv" data-theme="legacy">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Plainword — admin</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f5f1;
+        --card: #fff;
+        --text: #1b2422;
+        --muted: #5b625f;
+        --line: #d8dad3;
+        --accent: #2d3f69;
+        --danger: #8a2e2e;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #12161a;
+          --card: #191e23;
+          --text: #e9e7df;
+          --muted: #a9afa8;
+          --line: #2a3138;
+          --accent: #9aaddc;
+          --danger: #ed8d8d;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+        line-height: 1.5;
+      }
+      .wrap {
+        max-width: 1040px;
+        margin: auto;
+        padding: 2.5rem 1.2rem 5rem;
+      }
+      h1,
+      h2 {
+        font-family: Georgia, serif;
+        font-weight: 400;
+      }
+      .auth,
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 1rem 1.1rem;
+        margin-bottom: 1rem;
+      }
+      .row,
+      .tabs,
+      .actions {
+        display: flex;
+        gap: 0.6rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      input,
+      textarea,
+      button {
+        font: inherit;
+      }
+      input,
+      textarea {
+        border: 1px solid var(--line);
+        background: var(--bg);
+        color: var(--text);
+        border-radius: 7px;
+        padding: 0.6rem 0.7rem;
+        width: 100%;
+      }
+      .auth input {
+        flex: 1 1 280px;
+        width: auto;
+      }
+      .btn {
+        border: 1px solid var(--line);
+        background: transparent;
+        color: var(--text);
+        border-radius: 7px;
+        padding: 0.55rem 0.8rem;
+        cursor: pointer;
+      }
+      .btn.primary,
+      .tab.active {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: #fff;
+      }
+      .btn.reject {
+        border-color: var(--danger);
+        color: var(--danger);
+      }
+      .meta,
+      .status,
+      .hint {
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .label {
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin-top: 0.7rem;
+      }
+      .value {
+        white-space: pre-wrap;
+        margin: 0.2rem 0 0.5rem;
+      }
+      .publication {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid var(--line);
+        display: grid;
+        gap: 0.75rem;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+      }
+      .field {
+        display: grid;
+        gap: 0.25rem;
+      }
+      .field.full {
+        grid-column: 1/-1;
+      }
+      .field span {
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+      .note {
+        min-height: 70px;
+      }
+      .empty {
+        padding: 2rem;
+        text-align: center;
+        color: var(--muted);
+      }
+      .badge {
+        font-size: 0.72rem;
+        padding: 0.18rem 0.45rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+      }
+      .hidden {
+        display: none;
+      }
+      a {
+        color: var(--accent);
+      }
+      @media (max-width: 700px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+        .field.full {
+          grid-column: auto;
+        }
+      }
+    </style>
+    <link rel="stylesheet" href="/theme.css" />
+    <script src="/theme.js" defer></script>
+  </head>
+  <body>
+    <main class="wrap">
+      <div class="theme-row">
+        <label class="theme-control" for="theme-select"
+          ><span>Tema</span
+          ><select id="theme-select" aria-label="Tema">
+            <option value="legacy">Legacy</option>
+            <option value="forest">__SITE_FAMILY__</option>
+            <option value="blackout">Blackout</option>
+          </select></label
+        >
+      </div>
+      <h1>Plainword — admin</h1>
+      <p class="hint">
+        Granska inkomna förslag och underhåll publicerade termer. D1 är enda publika källa.
+      </p>
+      <section class="auth">
+        <div class="row">
+          <input
+            id="token"
+            type="password"
+            autocomplete="current-password"
+            placeholder="ADMIN_TOKEN"
+          /><button class="btn primary" id="load" type="button">Ladda</button
+          ><a href="/">Till startsidan</a>
+        </div>
+        <div class="status" id="status">Token sparas endast i sessionStorage för denna flik.</div>
+      </section>
+      <nav class="tabs">
+        <button class="btn tab active" data-tab="queue" type="button">Granskningskö</button
+        ><button class="btn tab" data-tab="terms" type="button">Publicerade termer</button>
+      </nav>
+      <section id="queue-view"></section>
+      <section id="terms-view" class="hidden"></section>
+    </main>
+    <script src="/admin.js" defer></script>
+  </body>
+</html>
