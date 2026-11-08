@@ -29,4 +29,4 @@ None
 - [ ] Tests cover the changed behavior, or this PR changes no behavior
 - [ ] No personal data, secrets, real domains or account IDs in committed files
 - [ ] Both language versions of changed docs are updated
-- [ ] Code, comments and docs are in English
+- [ ] Code, comments and docs are in English (exceptions: Swedish copies of English docs and user-facing Swedish app content)
