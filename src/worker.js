@@ -150,12 +150,10 @@ export async function requestBodyTooLarge(request) {
       if (done) return false;
       total += value.byteLength;
       if (total > MAX_API_BODY_BYTES) {
-        await reader.cancel();
-        try {
-          await request.body?.cancel();
-        } catch {
-          // The original stream may already be locked by the runtime.
-        }
+        await Promise.allSettled([
+          reader.cancel(),
+          request.body?.cancel() ?? Promise.resolve(),
+        ]);
         return true;
       }
     }
