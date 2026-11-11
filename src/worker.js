@@ -136,7 +136,7 @@ function validatePublication(p) {
   return null;
 }
 
-const MAX_API_BODY_BYTES = 32 * 1024;
+const MAX_API_BODY_BYTES = 128 * 1024;
 
 export async function requestBodyTooLarge(request) {
   const contentLength = request.headers.get("Content-Length");
