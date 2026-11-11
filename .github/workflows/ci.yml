@@ -22,9 +22,13 @@ jobs:
       - uses: actions/setup-node@v7.1.0
         with:
           node-version: 24
-      # Run bun's install step explicitly: it fetches the binary, and npm does not
-      # run dependency install scripts in every version.
-      - run: npm install --global bun@1.4.4 && node "$(npm root --global)/bun/install.js"
+      # npm does not run dependency install scripts in every version.
+      - run: |
+          npm install --global bun@1.4.4
+          bun_package_dir="$(npm root --global)/bun"
+          if ! "$bun_package_dir/bin/bun.exe" --version; then
+            (cd "$bun_package_dir" && node install.js)
+          fi
       - run: bun install --frozen-lockfile
       - run: npm test
       - run: npx wrangler deploy --dry-run
