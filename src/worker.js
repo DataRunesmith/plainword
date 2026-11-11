@@ -74,10 +74,15 @@ function clean(v) {
   const t = v.trim();
   return t || null;
 }
-function isHttpUrl(v) {
+export function isHttpUrl(v) {
   try {
     const u = new URL(v);
-    return u.protocol === "https:" || u.protocol === "http:";
+    return (
+      (u.protocol === "https:" || u.protocol === "http:") &&
+      Boolean(u.hostname) &&
+      !u.username &&
+      !u.password
+    );
   } catch {
     return false;
   }
@@ -236,6 +241,7 @@ async function verifyTurnstile(request, env, token, expectedAction) {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
+      signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return false;
     const result = await response.json();
