@@ -131,6 +131,39 @@ function validatePublication(p) {
   return null;
 }
 
+const MAX_API_BODY_BYTES = 32 * 1024;
+
+export async function requestBodyTooLarge(request) {
+  const contentLength = request.headers.get("Content-Length");
+  if (contentLength !== null) {
+    if (!/^\\d+$/.test(contentLength)) return true;
+    const length = Number(contentLength);
+    if (!Number.isSafeInteger(length) || length > MAX_API_BODY_BYTES) return true;
+  }
+  const body = request.clone().body;
+  if (!body) return false;
+  const reader = body.getReader();
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return false;
+      total += value.byteLength;
+      if (total > MAX_API_BODY_BYTES) {
+        await reader.cancel();
+        try {
+          await request.body?.cancel();
+        } catch {
+          // The original stream may already be locked by the runtime.
+        }
+        return true;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
 const RATE_LIMIT_MAX = 5;
 const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 
@@ -239,7 +272,7 @@ async function handleSubmit(request, env) {
   if (error) return badRequest(error);
   const ip = request.headers.get("CF-Connecting-IP");
   const identity = await rateLimitIdentity(ip, env.RATE_LIMIT_KEY || env.ADMIN_TOKEN);
-  if (ip && !identity)
+  if (!ip || !identity)
     return json({ error: "Rate limit configuration unavailable." }, { status: 503 });
   const timestamp = Date.now();
   const now = new Date(timestamp).toISOString();
@@ -249,8 +282,7 @@ async function handleSubmit(request, env) {
       (term, foreslagen_juridisk_definition, foreslagen_vardagsbetydelse, foreslagen_exempel,
        foreslaget_rattsomrade, inskickare_namn, inskickare_kommentar, status, created_at, submitter_ip)
      SELECT ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?
-      WHERE ? IS NULL OR
-        (SELECT COUNT(*) FROM submissions WHERE submitter_ip = ? AND created_at > ?) < ?`,
+      WHERE (SELECT COUNT(*) FROM submissions WHERE submitter_ip = ? AND created_at > ?) < ?`,
   )
     .bind(
       body.term.trim(),
@@ -261,8 +293,6 @@ async function handleSubmit(request, env) {
       clean(body.inskickare_namn),
       clean(body.inskickare_kommentar),
       now,
-      identity,
-      identity,
       identity,
       since,
       RATE_LIMIT_MAX,
@@ -455,8 +485,12 @@ export default {
       url.hostname = CANONICAL_HOST;
       return Response.redirect(url.toString(), 301);
     }
-    if (isD1ApiRoute(request.method, pathname))
+    if (isD1ApiRoute(request.method, pathname)) {
+      if ((request.method === "POST" || request.method === "PUT") && await requestBodyTooLarge(request)) {
+        return json({ error: "Förfrågan är för stor." }, { status: 413 });
+      }
       env = withD1Session(env, d1SessionConstraint(request.method, pathname));
+    }
     if (request.method === "GET" && pathname === "/api/terms") return handleTerms(env);
     if (request.method === "POST" && pathname === "/api/submit") return handleSubmit(request, env);
     if (request.method === "GET" && pathname === "/api/admin/queue")
