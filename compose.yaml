@@ -1,0 +1,17 @@
+# Self-hosted copy. Set ADMIN_TOKEN in the shell or in a .env file next to
+# this file, then: docker compose up -d
+services:
+  plainword:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set ADMIN_TOKEN to a long random string}
+      TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
+      TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
+    volumes:
+      - data:/data
+volumes:
+  data:

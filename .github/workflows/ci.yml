@@ -31,5 +31,5 @@ jobs:
           fi
       - run: bun install --frozen-lockfile
       - run: npm test
-      - run: npx wrangler deploy --dry-run
+      - run: sh tools/deploy.sh cloudflare.example.env --dry-run
       - run: node tools/check-addresses.mjs
