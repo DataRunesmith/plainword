@@ -141,7 +141,7 @@ const MAX_API_BODY_BYTES = 128 * 1024;
 export async function requestBodyTooLarge(request) {
   const contentLength = request.headers.get("Content-Length");
   if (contentLength !== null) {
-    if (!/^\\d+$/.test(contentLength)) return true;
+    if (!/^\d+$/.test(contentLength)) return true;
     const length = Number(contentLength);
     if (!Number.isSafeInteger(length) || length > MAX_API_BODY_BYTES) return true;
   }
