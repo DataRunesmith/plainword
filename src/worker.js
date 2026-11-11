@@ -294,6 +294,7 @@ async function handleSubmit(request, env) {
       clean(body.inskickare_kommentar),
       now,
       identity,
+      identity,
       since,
       RATE_LIMIT_MAX,
     )
