@@ -25,6 +25,8 @@ ADMIN_TOKEN='a-long-random-string' docker compose up -d
 
 Open <http://localhost:8787>. The review queue is at `/admin`; sign in there with the token. The database is kept in the `data` volume. Set `PUBLIC_HOST` to serve it under another host name, and `TURNSTILE_SITE_KEY` and `TURNSTILE_SECRET` to let visitors suggest terms. Instead of typing the values on the command line you can put them in a file named `.env` next to `compose.yaml`; git ignores it.
 
+The port is published on this machine only. To reach the app from other machines, put a reverse proxy with HTTPS in front of it; `BIND_ADDRESS=0.0.0.0` publishes the port on every network interface without encryption, so use that on a trusted network only.
+
 ### Your values on Cloudflare
 
 The three Cloudflare ways use the same values. They are listed in `cloudflare.example.env`:
@@ -40,6 +42,8 @@ The three Cloudflare ways use the same values. They are listed in `cloudflare.ex
 | `THEME_COOKIE_DOMAIN` | Optional. A parent domain to share the theme setting with your other sites. |
 | `SITE_FAMILY` | Name shown for the default theme. |
 | `RELATED_SITE_HTML` | Optional. HTML shown on the about page, for example a link to a related site. |
+
+The commands below need Node.js; each step can also be done in the Cloudflare dashboard.
 
 Do this once, before the first deploy:
 
@@ -80,7 +84,7 @@ npx wrangler login
 sh tools/deploy.sh .cloudflare.env
 ```
 
-Run the last command again whenever you want to deploy a newer version. `tools/deploy.sh` fills the values into a temporary copy, builds the documentation into `/docs` if python3 is installed, applies new database migrations, deploys the copy and removes it. Extra arguments go to `wrangler deploy`; `sh tools/deploy.sh .cloudflare.env --dry-run` builds without touching the database or uploading.
+Run the last command again whenever you want to deploy a newer version. `tools/deploy.sh` fills the values into a temporary copy, builds the documentation into `/docs` if python3 is installed, applies new database migrations, deploys the copy and removes it. Extra arguments go to `wrangler deploy`; `sh tools/deploy.sh .cloudflare.env --dry-run` builds without touching the database or uploading. If `.cloudflare.env` also has the lines `CLOUDFLARE_API_TOKEN=...` and `CLOUDFLARE_ACCOUNT_ID=...`, they are used and `wrangler login` is not needed.
 
 ### GitHub Actions
 

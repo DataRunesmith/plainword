@@ -25,6 +25,8 @@ ADMIN_TOKEN='en-lång-slumpad-sträng' docker compose up -d
 
 Öppna <http://localhost:8787>. Granskningskön finns på `/admin`; logga in där med token. Databasen sparas i volymen `data`. Sätt `PUBLIC_HOST` för att köra under ett annat värdnamn, och `TURNSTILE_SITE_KEY` och `TURNSTILE_SECRET` för att besökare ska kunna föreslå ord. I stället för att skriva värdena på kommandoraden kan du lägga dem i en fil med namnet `.env` bredvid `compose.yaml`; git ignorerar den.
 
+Porten publiceras bara på den här datorn. För att nå appen från andra datorer sätter du en omvänd proxy med HTTPS framför den; `BIND_ADDRESS=0.0.0.0` publicerar porten okrypterad på alla nätverksgränssnitt, så använd det bara i ett nätverk du litar på.
+
 ### Dina värden hos Cloudflare
 
 De tre Cloudflare-sätten använder samma värden. De står i `cloudflare.example.env`:
@@ -40,6 +42,8 @@ De tre Cloudflare-sätten använder samma värden. De står i `cloudflare.exampl
 | `THEME_COOKIE_DOMAIN` | Valfritt. En överordnad domän att dela temainställningen med dina andra sajter på. |
 | `SITE_FAMILY` | Namnet som visas för standardtemat. |
 | `RELATED_SITE_HTML` | Valfritt. HTML som visas på sidan om sajten, till exempel en länk till en besläktad sajt. |
+
+Kommandona nedan kräver Node.js; varje steg går också att göra i Cloudflares kontrollpanel.
 
 Gör detta en gång, före första driftsättningen:
 
@@ -80,7 +84,7 @@ npx wrangler login
 sh tools/deploy.sh .cloudflare.env
 ```
 
-Kör det sista kommandot igen när du vill driftsätta en nyare version. `tools/deploy.sh` fyller i värdena i en tillfällig kopia, bygger dokumentationen till `/docs` om python3 finns, kör nya databasmigreringar, driftsätter kopian och tar bort den. Extra argument går vidare till `wrangler deploy`; `sh tools/deploy.sh .cloudflare.env --dry-run` bygger utan att röra databasen eller ladda upp något.
+Kör det sista kommandot igen när du vill driftsätta en nyare version. `tools/deploy.sh` fyller i värdena i en tillfällig kopia, bygger dokumentationen till `/docs` om python3 finns, kör nya databasmigreringar, driftsätter kopian och tar bort den. Extra argument går vidare till `wrangler deploy`; `sh tools/deploy.sh .cloudflare.env --dry-run` bygger utan att röra databasen eller ladda upp något. Om `.cloudflare.env` också har raderna `CLOUDFLARE_API_TOKEN=...` och `CLOUDFLARE_ACCOUNT_ID=...` används de, och `wrangler login` behövs inte.
 
 ### GitHub Actions
 
