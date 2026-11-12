@@ -376,3 +376,6 @@ build/
 site/
 site-docs/
 .wrangler/
+
+# Local Claude Code statusline script, kept outside the repository
+statusline.sh
