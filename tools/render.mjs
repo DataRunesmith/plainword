@@ -127,6 +127,19 @@ if (missing.length) {
   process.exit(1);
 }
 
+// Validate the overlay before anything is deleted, so a rejected input leaves
+// an existing output untouched.
+if (overlayArg) {
+  let overlayInfo;
+  try {
+    overlayInfo = lstatSync(overlayArg);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  // lstat sees a dangling link that existsSync would report as missing.
+  if (overlayInfo?.isSymbolicLink()) throw new Error("Overlay directory cannot be a symbolic link.");
+}
+
 // Only a dedicated generated output directory (or a path outside the repo)
 // may be replaced. The path and its parent have been canonicalized above.
 rmSync(out, { recursive: true, force: true });
@@ -147,8 +160,6 @@ for (const name of readdirSync(source)) {
     });
 }
 if (overlayArg && existsSync(overlayArg)) {
-  if (lstatSync(overlayArg).isSymbolicLink())
-    throw new Error("Overlay directory cannot be a symbolic link.");
   cpSync(overlayArg, out, {
     recursive: true,
     filter: (candidate) => !lstatSync(candidate).isSymbolicLink(),
