@@ -32,7 +32,14 @@ Before pushing:
 - Verify that tests actually exercise the changed behavior and that passing checks are not being mistaken for proof that the implementation is defect-free.
 - Inspect the final diff once more after all fixes and checks.
 
-Do not push incomplete, inadequately reviewed, knowingly defective, or questionable code simply to make progress or obtain feedback from CI or reviewers. CI, CodeRabbit, CodeQL, and human review are additional safeguards, not substitutes for doing the engineering work before pushing.
+Do not push incomplete, inadequately reviewed, knowingly defective, or questionable code simply to make progress. Do the review and verification locally first. A push that opens or updates a pull request is allowed once it has passed this gate; CI, CodeRabbit, CodeQL, and human review are additional safeguards that then confirm the result, not substitutes for doing the engineering work before pushing.
+
+A pull request may be merged only when it is up to date with `main`, every required check is green, and no review thread is open (see `CLAUDE.md`).
+
+### Enforcement
+
+- Locally: `.githooks/pre-push` runs the same tests and checks as CI and blocks the push when they fail. Enable it once per clone with `git config core.hooksPath .githooks`.
+- On the server: CI and code scanning must pass before a pull request can be merged, so a push that skipped the hook still cannot reach `main`.
 
 If a required check cannot be run, or a finding cannot be resolved, do not silently proceed with the push. Investigate alternatives and clearly report the specific blocker, its impact, and the evidence available. A push despite an unresolved blocker requires explicit authorization; never present such a push as fully verified.
 

@@ -1,0 +1,7 @@
+#!/bin/sh
+# Blocks a push when the checks that CI also runs fail. Enable it once per clone:
+#   git config core.hooksPath .githooks
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+npm test
+node tools/check-addresses.mjs
