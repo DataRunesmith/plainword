@@ -9,14 +9,17 @@
 // the values are read from environment variables instead, e.g. the build
 // variables of Cloudflare Workers Builds or a container's environment.
 // Values may use \n for line breaks, or "@path" to read a file. Files in the
-// optional overlay directory are copied on top (e.g. your own images). Routes
+// optional overlay directory are copied on top (e.g. your own images). The
+// output goes to build/ (or dist/, site-docs/, .wrangler/) in the repository,
+// to a directory below the system temp directory, or to /srv/site; the overlay
+// must be below the working directory, the repository or the temp directory.
+// Routes
 // whose pattern ends up empty are dropped from wrangler.jsonc. Deploy with
 //   npx wrangler deploy --cwd <out-dir>   (politiker: --cwd <out-dir>/app)
 import { execFileSync } from "node:child_process";
 import {
   closeSync,
   cpSync,
-  existsSync,
   lstatSync,
   mkdirSync,
   fstatSync,
@@ -29,7 +32,8 @@ import {
   symlinkSync,
   writeSync,
 } from "node:fs";
-import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 const [valuesFile, outArg, overlayArg] = process.argv.slice(2);
@@ -38,29 +42,44 @@ if (!valuesFile || !outArg) {
   process.exit(2);
 }
 const source = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
-const requestedOut = resolve(outArg);
-mkdirSync(dirname(requestedOut), { recursive: true });
-const out = resolve(realpathSync(dirname(requestedOut)), basename(requestedOut));
-let outInfo;
-try {
-  outInfo = lstatSync(out);
-} catch (error) {
-  if (error.code !== "ENOENT") throw error;
-}
-if (outInfo?.isSymbolicLink()) throw new Error("Refusing to replace a symbolic-link output path.");
-if (outInfo && !outInfo.isDirectory()) throw new Error("Output path exists and is not a directory.");
 
+// Paths from the command line are only used after they have been resolved and
+// checked against a fixed list of directories. "self" means the directory
+// itself is allowed too; for the temp directory only subdirectories are.
+function insideRoots(arg, roots, what) {
+  const abs = resolve(arg);
+  for (const { dir, self } of roots) {
+    if (abs.startsWith(dir + sep)) return { path: abs, root: dir };
+    if (self && abs === dir) return { path: dir, root: dir };
+  }
+  throw new Error(`${what} must be inside one of: ${roots.map((r) => r.dir).join(", ")}`);
+}
+const tempDirs = [...new Set([tmpdir(), realpathSync(tmpdir())])].map((dir) => ({ dir, self: false }));
+const GENERATED = ["dist", ".wrangler", "site-docs", "build"];
+const outputRoots = [
+  ...GENERATED.map((name) => ({ dir: join(source, name), self: true })),
+  ...tempDirs,
+  // Where the container image renders the site.
+  { dir: "/srv/site", self: true },
+];
+const { path: out, root: outRoot } = insideRoots(outArg, outputRoots, "The output directory");
 const isWithin = (parent, candidate) => {
   const rel = relative(parent, candidate);
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
 };
 if (isWithin(out, source))
   throw new Error("Output path cannot be the source directory or one of its parent directories.");
+
+// Create the directory if needed and make sure no symbolic link led out of
+// the allowed directory on the way there.
+mkdirSync(out, { recursive: true });
+const realOut = realpathSync(out);
+const realRoot = realpathSync(outRoot);
+if (realOut !== realRoot && !realOut.startsWith(realRoot + sep))
+  throw new Error("Refusing to use an output path that passes through a symbolic link.");
+if (lstatSync(out).isSymbolicLink()) throw new Error("Refusing to replace a symbolic-link output path.");
 if (isWithin(source, out)) {
   const outputRelative = relative(source, out);
-  const outputRoot = outputRelative.split(sep)[0];
-  if (!["dist", ".wrangler", "site-docs", "build"].includes(outputRoot))
-    throw new Error("An output directory inside the repository must be a dedicated generated directory.");
   try {
     execFileSync("git", ["check-ignore", "--quiet", "--no-index", "--", outputRelative], {
       cwd: source,
@@ -128,20 +147,28 @@ if (missing.length) {
 }
 
 // Validate the overlay before anything is deleted, so a rejected input leaves
-// an existing output untouched.
+// an existing output untouched. It must be below the working directory, the
+// repository or the temp directory.
+let overlay = null;
 if (overlayArg) {
+  const overlayRoots = [
+    { dir: process.cwd(), self: true },
+    { dir: source, self: true },
+    ...tempDirs,
+  ];
+  const checked = insideRoots(overlayArg, overlayRoots, "The overlay directory").path;
   let overlayInfo;
   try {
-    overlayInfo = lstatSync(overlayArg);
+    overlayInfo = lstatSync(checked);
   } catch (error) {
     if (error.code !== "ENOENT") throw error;
   }
   // lstat sees a dangling link that existsSync would report as missing.
   if (overlayInfo?.isSymbolicLink()) throw new Error("Overlay directory cannot be a symbolic link.");
+  if (overlayInfo) overlay = checked;
 }
 
-// Only a dedicated generated output directory (or a path outside the repo)
-// may be replaced. The path and its parent have been canonicalized above.
+// The output directory was checked above, so it may be replaced.
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
 const keep = (path) => {
@@ -159,8 +186,8 @@ for (const name of readdirSync(source)) {
       filter: (candidate) => keep(candidate) && !lstatSync(candidate).isSymbolicLink(),
     });
 }
-if (overlayArg && existsSync(overlayArg)) {
-  cpSync(overlayArg, out, {
+if (overlay) {
+  cpSync(overlay, out, {
     recursive: true,
     filter: (candidate) => !lstatSync(candidate).isSymbolicLink(),
   });
