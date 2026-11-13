@@ -21,7 +21,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7.1.0
         with:
-          node-version: 24
+          node-version: 26
       # npm does not run dependency install scripts in every version.
       - run: |
           npm install --global bun@1.4.4
