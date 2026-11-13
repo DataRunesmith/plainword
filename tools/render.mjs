@@ -13,9 +13,9 @@
 // output goes to build/ (or dist/, site-docs/, .wrangler/) in the repository,
 // to a directory below the system temp directory, or to /srv/site; the overlay
 // must be below the working directory, the repository or the temp directory.
-// Routes whose pattern ends up empty, and Secrets Store bindings whose store
-// id ends up empty, are dropped from wrangler.jsonc. tools/deploy.sh renders
-// and deploys in one step.
+// Routes
+// whose pattern ends up empty are dropped from wrangler.jsonc. Deploy with
+//   npx wrangler deploy --cwd <out-dir>   (politiker: --cwd <out-dir>/app)
 import { execFileSync } from "node:child_process";
 import {
   closeSync,
