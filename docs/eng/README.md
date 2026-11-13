@@ -120,9 +120,7 @@ To try it locally without Docker, render a copy with your values and start it:
 node tools/render.mjs .cloudflare.env build
 ```
 
-The output directory must be `build` (or `dist`, `site-docs`, `.wrangler`) in the repository or a directory below the system temp directory, and an overlay directory must be below the working directory, the repository or the temp directory. The tool only deletes and writes there.
-
-Deploy with `npx wrangler deploy --cwd build` on the rendered copy. Create the D1 database yourself and put its name and ID in the values file; the tables are created by the files in `migrations/`. The admin area under `/admin` is meant to sit behind Cloudflare Access.
+The output directory must be `build` (or `dist`, `site-docs`, `.wrangler`) in the repository or a directory below the system temp directory, and an overlay directory must be below the working directory, the repository or the temp directory. The tool empties the whole output directory before it writes: everything in it is deleted, so keep none of your own files there. The directories on the way to it must belong to you and must not be writable by others (`chmod go-w`); a directory the tool creates itself is private.
 
 ```sh
 (cd build && npx wrangler d1 migrations apply DB --local && npx wrangler dev)
