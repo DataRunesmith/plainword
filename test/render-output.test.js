@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -127,5 +127,71 @@ test("refuses an overlay that is reached through a symbolic-link directory", () 
     assert.equal(existsSync(join(out, "secret.txt")), false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A copy of the renderer inside a throwaway git repository below the temp directory.
+function scaffoldRepo() {
+  const repo = tempDir();
+  mkdirSync(join(repo, "tools"));
+  cpSync(join(root, "tools", "render.mjs"), join(repo, "tools", "render.mjs"));
+  cpSync(join(root, "cloudflare.example.env"), join(repo, "cloudflare.example.env"));
+  writeFileSync(join(repo, ".gitignore"), "node_modules\nbuild\n");
+  writeFileSync(join(repo, "package.json"), "{}");
+  mkdirSync(join(repo, "src"));
+  writeFileSync(join(repo, "src", "a.txt"), "tracked");
+  mkdirSync(join(repo, "node_modules"));
+  writeFileSync(join(repo, "node_modules", "keep.txt"), "keep");
+  writeFileSync(join(repo, ".dev.vars"), "SECRET=1");
+  spawnSync("git", ["init", "-q"], { cwd: repo });
+  spawnSync("git", ["add", "-A"], { cwd: repo });
+  return repo;
+}
+const renderIn = (repo, ...args) =>
+  spawnSync("node", ["tools/render.mjs", "cloudflare.example.env", ...args], {
+    cwd: repo,
+    encoding: "utf8",
+  });
+
+test("a repository below the temp directory may only render into its generated directories", () => {
+  const repo = scaffoldRepo();
+  try {
+    for (const target of ["src/foo", "node_modules", "node_modules/x", "."]) {
+      const result = renderIn(repo, join(repo, target));
+      assert.notEqual(result.status, 0, `${target} should be refused`);
+    }
+    assert.equal(existsSync(join(repo, "src", "foo")), false);
+    assert.equal(existsSync(join(repo, "node_modules", "keep.txt")), true);
+    assert.equal(existsSync(join(repo, "node_modules", "x")), false);
+    const ok = renderIn(repo, join(repo, "build", "site"));
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.equal(existsSync(join(repo, "build", "site", "src", "a.txt")), true);
+    assert.equal(existsSync(join(repo, "build", "site", ".dev.vars")), false);
+    assert.equal(existsSync(join(repo, "build", "site", "build")), false);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("refuses an overlay that is the repository or lies inside or around the output", () => {
+  const repo = scaffoldRepo();
+  const out = join(repo, "build", "site");
+  try {
+    assert.equal(renderIn(repo, out).status, 0);
+    writeFileSync(join(out, "marker.txt"), "marker");
+    mkdirSync(join(out, "assets"));
+    for (const overlay of [".", repo, join(repo, "build"), join(out, "assets"), out]) {
+      const result = renderIn(repo, out, overlay);
+      assert.notEqual(result.status, 0, `${overlay} should be refused`);
+      assert.equal(existsSync(join(out, "marker.txt")), true, "the output must be left intact");
+    }
+    const real = join(repo, "images");
+    mkdirSync(real);
+    writeFileSync(join(real, "logo.txt"), "logo");
+    const ok = renderIn(repo, out, real);
+    assert.equal(ok.status, 0, ok.stderr);
+    assert.equal(existsSync(join(out, "logo.txt")), true);
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
   }
 });
