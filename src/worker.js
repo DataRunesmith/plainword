@@ -74,10 +74,15 @@ function clean(v) {
   const t = v.trim();
   return t || null;
 }
-function isHttpUrl(v) {
+export function isHttpUrl(v) {
   try {
     const u = new URL(v);
-    return u.protocol === "https:" || u.protocol === "http:";
+    return (
+      (u.protocol === "https:" || u.protocol === "http:") &&
+      Boolean(u.hostname) &&
+      !u.username &&
+      !u.password
+    );
   } catch {
     return false;
   }
@@ -129,6 +134,44 @@ function validatePublication(p) {
   if (!isHttpUrl(p.institution_kalla_url))
     return "Institutionens käll-URL måste börja med http:// eller https://.";
   return null;
+}
+
+const MAX_API_BODY_BYTES = 128 * 1024;
+
+export async function requestBodyTooLarge(request) {
+  const contentLength = request.headers.get("Content-Length");
+  if (contentLength !== null) {
+    if (!/^\d+$/.test(contentLength)) return true;
+    const length = Number(contentLength);
+    if (!Number.isSafeInteger(length) || length > MAX_API_BODY_BYTES) return true;
+  }
+  const body = request.clone().body;
+  if (!body) return false;
+  const reader = body.getReader();
+  let total = 0;
+  try {
+    while (true) {
+      let chunk;
+      try {
+        chunk = await reader.read();
+      } catch {
+        // A broken body stream: let the route handler answer with its own 400.
+        return false;
+      }
+      const { done, value } = chunk;
+      if (done) return false;
+      total += value.byteLength;
+      if (total > MAX_API_BODY_BYTES) {
+        await Promise.allSettled([
+          reader.cancel(),
+          request.body?.cancel() ?? Promise.resolve(),
+        ]);
+        return true;
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 const RATE_LIMIT_MAX = 5;
@@ -205,6 +248,7 @@ async function verifyTurnstile(request, env, token, expectedAction) {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body,
+      signal: AbortSignal.timeout(5_000),
     });
     if (!response.ok) return false;
     const result = await response.json();
@@ -239,7 +283,7 @@ async function handleSubmit(request, env) {
   if (error) return badRequest(error);
   const ip = request.headers.get("CF-Connecting-IP");
   const identity = await rateLimitIdentity(ip, env.RATE_LIMIT_KEY || env.ADMIN_TOKEN);
-  if (ip && !identity)
+  if (!ip || !identity)
     return json({ error: "Rate limit configuration unavailable." }, { status: 503 });
   const timestamp = Date.now();
   const now = new Date(timestamp).toISOString();
@@ -249,8 +293,7 @@ async function handleSubmit(request, env) {
       (term, foreslagen_juridisk_definition, foreslagen_vardagsbetydelse, foreslagen_exempel,
        foreslaget_rattsomrade, inskickare_namn, inskickare_kommentar, status, created_at, submitter_ip)
      SELECT ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?
-      WHERE ? IS NULL OR
-        (SELECT COUNT(*) FROM submissions WHERE submitter_ip = ? AND created_at > ?) < ?`,
+      WHERE (SELECT COUNT(*) FROM submissions WHERE submitter_ip = ? AND created_at > ?) < ?`,
   )
     .bind(
       body.term.trim(),
@@ -261,7 +304,6 @@ async function handleSubmit(request, env) {
       clean(body.inskickare_namn),
       clean(body.inskickare_kommentar),
       now,
-      identity,
       identity,
       identity,
       since,
@@ -455,8 +497,12 @@ export default {
       url.hostname = CANONICAL_HOST;
       return Response.redirect(url.toString(), 301);
     }
-    if (isD1ApiRoute(request.method, pathname))
+    if (isD1ApiRoute(request.method, pathname)) {
+      if ((request.method === "POST" || request.method === "PUT") && await requestBodyTooLarge(request)) {
+        return json({ error: "Förfrågan är för stor." }, { status: 413 });
+      }
       env = withD1Session(env, d1SessionConstraint(request.method, pathname));
+    }
     if (request.method === "GET" && pathname === "/api/terms") return handleTerms(env);
     if (request.method === "POST" && pathname === "/api/submit") return handleSubmit(request, env);
     if (request.method === "GET" && pathname === "/api/admin/queue")
