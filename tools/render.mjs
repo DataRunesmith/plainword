@@ -78,6 +78,18 @@ const realRoot = realpathSync(outRoot);
 if (realOut !== realRoot && !realOut.startsWith(realRoot + sep))
   throw new Error("Refusing to use an output path that passes through a symbolic link.");
 if (lstatSync(out).isSymbolicLink()) throw new Error("Refusing to replace a symbolic-link output path.");
+// Nobody else may be able to swap a directory on the way for a link after the
+// checks: every directory from the output up to its allowed root must belong to
+// the current user, and the root itself must not be writable by others (unless
+// it is a sticky directory such as /tmp).
+if (typeof process.getuid === "function") {
+  for (let dir = out; dir !== outRoot; dir = dirname(dir))
+    if (lstatSync(dir).uid !== process.getuid())
+      throw new Error(`Refusing to use ${dir}: it belongs to another user.`);
+  const rootMode = lstatSync(outRoot).mode;
+  if (rootMode & 0o022 && !(rootMode & 0o1000))
+    throw new Error(`Refusing to use ${outRoot}: other users can write to it.`);
+}
 if (isWithin(source, out)) {
   const outputRelative = relative(source, out);
   try {
@@ -176,7 +188,9 @@ const keep = (path) => {
   const isOutput = outRelative === "" ||
     (outRelative !== ".." && !outRelative.startsWith(`..${sep}`) && !isAbsolute(outRelative));
   const sourceRelative = relative(source, path);
-  return !isOutput && !sourceRelative.split(sep).some((part) => SKIP.has(part));
+  // A directory that contains the output cannot be copied into itself.
+  return !isOutput && !isWithin(path, out) &&
+    !sourceRelative.split(sep).some((part) => SKIP.has(part));
 };
 for (const name of readdirSync(source)) {
   const path = join(source, name);
@@ -200,7 +214,7 @@ if (overlay) {
       !entry.isDirectory() ||
       entry.name.startsWith(".") ||
       (SKIP.has(entry.name) && entry.name !== "node_modules") ||
-      join(dir, entry.name) === out
+      isWithin(join(dir, entry.name), out)
     )
       continue;
     const path = join(dir, entry.name);
