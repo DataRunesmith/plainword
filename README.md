@@ -120,6 +120,8 @@ Prova lokalt utan Docker genom att rendera en kopia med dina värden och starta 
 node tools/render.mjs .cloudflare.env build
 ```
 
+Utdatakatalogen måste vara `build` (eller `dist`, `site-docs`, `.wrangler`) i repot eller en katalog under systemets temp-katalog, och en overlay-katalog måste ligga under arbetskatalogen, repot eller temp-katalogen. Verktyget raderar och skriver bara där.
+
 ```sh
 (cd build && npx wrangler d1 migrations apply DB --local && npx wrangler dev)
 ```
