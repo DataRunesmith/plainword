@@ -39,7 +39,7 @@ A pull request may be merged only when it is up to date with `main`, every requi
 ### Enforcement
 
 - Locally: `.githooks/pre-push` runs the same tests and checks as CI and blocks the push when they fail. Enable it once per clone with `git config core.hooksPath .githooks`.
-- On the server: CI and code scanning must pass before a pull request can be merged, so a push that skipped the hook still cannot reach `main`.
+- On the server: the "Protect main" ruleset requires CodeQL code-scanning results before a pull request can merge into `main`. CI is not a required status check, so a failing CI run does not block the merge; do not rely on the server for it, and do not merge a pull request with a failing CI run.
 
 If a required check cannot be run, or a finding cannot be resolved, do not silently proceed with the push. Investigate alternatives and clearly report the specific blocker, its impact, and the evidence available. A push despite an unresolved blocker requires explicit authorization; never present such a push as fully verified.
 
