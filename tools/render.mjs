@@ -19,6 +19,7 @@
 import { execFileSync } from "node:child_process";
 import {
   closeSync,
+  constants,
   cpSync,
   lstatSync,
   mkdirSync,
@@ -113,7 +114,7 @@ if (typeof process.getuid === "function") {
   for (let dir = out; dir !== outRoot; dir = dirname(dir))
     if (lstatSync(dir).uid !== process.getuid())
       throw new Error(`Refusing to use ${dir}: it belongs to another user.`);
-  const rootMode = lstatSync(outRoot).mode;
+  const rootMode = lstatSync(realRoot).mode;
   if (rootMode & 0o022 && !(rootMode & 0o1000))
     throw new Error(`Refusing to use ${outRoot}: other users can write to it.`);
 }
@@ -212,9 +213,31 @@ if (overlayArg) {
   if (overlayInfo) overlay = checked;
 }
 
-// The output directory was checked above, so it may be replaced.
+// Last look before the output is replaced: open it without following a link and
+// check that it is still the same directory that was verified, still below the
+// allowed root and still ours. Every directory above it belongs to the current
+// user (checked earlier), so nobody else can swap it between this check and the
+// removal; the same check runs again once it has been created anew.
+function assertOutputIntact() {
+  const fd = openSync(out, constants.O_RDONLY | (constants.O_DIRECTORY ?? 0) | (constants.O_NOFOLLOW ?? 0));
+  try {
+    const opened = fstatSync(fd);
+    const linked = lstatSync(out);
+    if (!opened.isDirectory() || linked.isSymbolicLink() || opened.dev !== linked.dev || opened.ino !== linked.ino)
+      throw new Error("The output directory changed while it was being checked.");
+    if (typeof process.getuid === "function" && opened.uid !== process.getuid())
+      throw new Error("The output directory belongs to another user.");
+  } finally {
+    closeSync(fd);
+  }
+  const real = realpathSync(out);
+  if (real !== realRoot && !real.startsWith(realRoot + sep))
+    throw new Error("The output directory no longer lies inside the allowed directory.");
+}
+assertOutputIntact();
 rmSync(out, { recursive: true, force: true });
 mkdirSync(out, { recursive: true });
+assertOutputIntact();
 const keep = (path) => {
   const outRelative = relative(out, path);
   const isOutput = outRelative === "" ||
