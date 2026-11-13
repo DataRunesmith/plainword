@@ -151,7 +151,14 @@ export async function requestBodyTooLarge(request) {
   let total = 0;
   try {
     while (true) {
-      const { done, value } = await reader.read();
+      let chunk;
+      try {
+        chunk = await reader.read();
+      } catch {
+        // A broken body stream: let the route handler answer with its own 400.
+        return false;
+      }
+      const { done, value } = chunk;
       if (done) return false;
       total += value.byteLength;
       if (total > MAX_API_BODY_BYTES) {

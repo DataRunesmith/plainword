@@ -95,7 +95,7 @@ test("submission quota is enforced atomically and preserves existing controls", 
 
   assert.equal((await worker.fetch(request("203.0.113.11"), env)).status, 201);
   for (let i = 0; i < 6; i++) assert.equal((await worker.fetch(request(null), env)).status, 503);
-  assert.equal((await worker.fetch(request("203.0.113.12", { term: "x".repeat(129_000) }), env)).status, 413);
+  assert.equal((await worker.fetch(request("203.0.113.12", { term: "x".repeat(128 * 1024 + 1) }), env)).status, 413);
   assert.equal((await worker.fetch(request(), { ...env, RATE_LIMIT_KEY: "" })).status, 503);
   assert.equal((await worker.fetch(request("203.0.113.12", { term: "" }), env)).status, 400);
 
