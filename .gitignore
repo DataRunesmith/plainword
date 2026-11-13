@@ -376,3 +376,9 @@ build/
 site/
 site-docs/
 .wrangler/
+
+# Your own values for tools/deploy.sh and tools/render.mjs, and a copy rendered
+# with them
+*.env
+!*.example.env
+/build/

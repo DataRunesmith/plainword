@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -13,23 +13,29 @@ const render = (...args) =>
   });
 const tempDir = () => mkdtempSync(join(tmpdir(), "plainword-render-"));
 
-// build/ may hold someone's work: remove it afterwards only if the test created it.
+// build/ may hold someone's work: tests use a unique directory inside it and remove
+// only that, plus build/ itself if the test created it.
 const build = join(root, "build");
-const removeIfCreated = (existed) => {
-  if (!existed) rmSync(build, { recursive: true, force: true });
-};
+function inBuild(run) {
+  const existed = existsSync(build);
+  mkdirSync(build, { recursive: true, mode: 0o700 });
+  const fixture = mkdtempSync(join(build, "fixture-"));
+  try {
+    return run(fixture);
+  } finally {
+    rmSync(fixture, { recursive: true, force: true });
+    if (!existed) rmSync(build, { recursive: true, force: true });
+  }
+}
 
 test("renders into a nested directory under build/ without copying build into itself", () => {
-  const existed = existsSync(build);
-  try {
-    const result = render(join(root, "build", "render-test"));
+  inBuild((fixture) => {
+    const out = join(fixture, "site");
+    const result = render(out);
     assert.equal(result.status, 0, result.stderr);
-    assert.equal(existsSync(join(root, "build", "render-test", "package.json")), true);
-    assert.equal(existsSync(join(root, "build", "render-test", "build")), false);
-  } finally {
-    rmSync(join(root, "build", "render-test"), { recursive: true, force: true });
-    removeIfCreated(existed);
-  }
+    assert.equal(existsSync(join(out, "package.json")), true);
+    assert.equal(existsSync(join(out, "build")), false);
+  });
 });
 
 test("renders into a directory below the temp directory", () => {
@@ -60,20 +66,19 @@ test("refuses output directories outside the allowed ones and deletes nothing", 
 });
 
 test("refuses an output path that passes through a symbolic link", () => {
-  const existed = existsSync(build);
   const dir = tempDir();
   const elsewhere = join(dir, "elsewhere");
   mkdirSync(elsewhere);
   writeFileSync(join(elsewhere, "keep.txt"), "keep");
   try {
-    mkdirSync(join(root, "build"), { recursive: true });
-    symlinkSync(elsewhere, join(root, "build", "link"));
-    const result = render(join(root, "build", "link", "site"));
-    assert.notEqual(result.status, 0);
-    assert.equal(existsSync(join(elsewhere, "keep.txt")), true);
+    inBuild((fixture) => {
+      symlinkSync(elsewhere, join(fixture, "link"));
+      const result = render(join(fixture, "link", "site"));
+      assert.notEqual(result.status, 0);
+      assert.equal(existsSync(join(elsewhere, "keep.txt")), true);
+      assert.equal(existsSync(join(elsewhere, "site")), false);
+    });
   } finally {
-    rmSync(join(root, "build", "link"), { recursive: true, force: true });
-    removeIfCreated(existed);
     rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -193,5 +198,72 @@ test("refuses an overlay that is the repository or lies inside or around the out
     assert.equal(existsSync(join(out, "logo.txt")), true);
   } finally {
     rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("refuses an overlay that is a file and leaves the existing output intact", () => {
+  const dir = tempDir();
+  const out = join(dir, "site");
+  try {
+    assert.equal(render(out).status, 0);
+    writeFileSync(join(out, "marker.txt"), "marker");
+    const file = join(dir, "logo.png");
+    writeFileSync(file, "not a directory");
+    const result = render(out, file);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /must be a directory/);
+    assert.equal(existsSync(join(out, "marker.txt")), true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a rejected overlay or a missing values file creates no output directory", () => {
+  const dir = tempDir();
+  const out = join(dir, "site");
+  try {
+    assert.notEqual(render(out, "/etc").status, 0);
+    assert.equal(existsSync(out), false);
+    const missing = spawnSync("node", ["tools/render.mjs", join(dir, "missing.env"), out], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.notEqual(missing.status, 0);
+    assert.equal(existsSync(out), false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refuses a parent directory that others can write to, and creates nothing in it", () => {
+  const dir = tempDir();
+  const shared = join(dir, "shared");
+  mkdirSync(shared);
+  chmodSync(shared, 0o777);
+  try {
+    const result = render(join(shared, "site"));
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /other users can write/);
+    assert.equal(existsSync(join(shared, "site")), false);
+    chmodSync(shared, 0o700);
+    assert.equal(render(join(shared, "site")).status, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("the output directory is private whatever the umask is", () => {
+  const dir = tempDir();
+  const out = join(dir, "site");
+  try {
+    const result = spawnSync("sh", ["-c", 'umask 0; exec node tools/render.mjs cloudflare.example.env "$0"', out], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(statSync(out).mode & 0o077, 0);
+    assert.equal(render(out).status, 0, "rendering again into it works");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

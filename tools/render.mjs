@@ -13,9 +13,9 @@
 // output goes to build/ (or dist/, site-docs/, .wrangler/) in the repository,
 // to a directory below the system temp directory, or to /srv/site; the overlay
 // must be below the working directory, the repository or the temp directory.
-// Routes
-// whose pattern ends up empty are dropped from wrangler.jsonc. Deploy with
-//   npx wrangler deploy --cwd <out-dir>   (politiker: --cwd <out-dir>/app)
+// Routes whose pattern ends up empty, and Secrets Store bindings whose store
+// id ends up empty, are dropped from wrangler.jsonc. tools/deploy.sh renders
+// and deploys in one step.
 import { execFileSync } from "node:child_process";
 import {
   closeSync,
@@ -29,6 +29,7 @@ import {
   readFileSync,
   realpathSync,
   readdirSync,
+  statSync,
   rmSync,
   symlinkSync,
   writeSync,
@@ -43,6 +44,25 @@ if (!valuesFile || !outArg) {
   process.exit(2);
 }
 const source = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), ".."));
+
+// Read and check the values first: a missing file or value must not leave a
+// created or emptied directory behind.
+const declared = [...parseEnv(join(source, "cloudflare.example.env")).keys()];
+const values =
+  valuesFile === "-"
+    ? new Map(
+        declared
+          .filter((name) => name in process.env)
+          .map((name) => [name, process.env[name].replace(/\\n/g, "\n")]),
+      )
+    : parseEnv(valuesFile);
+const missing = declared.filter((name) => !values.has(name));
+if (missing.length) {
+  console.error(
+    `${valuesFile === "-" ? "the environment" : valuesFile} is missing: ${missing.join(", ")}`,
+  );
+  process.exit(1);
+}
 
 // Paths from the command line are only used after they have been resolved and
 // checked against a fixed list of directories. "self" means the directory
@@ -119,27 +139,89 @@ if (isWithin(source, out)) {
   if (trackedFiles) throw new Error("Refusing to delete tracked files from the output directory.");
 }
 
+// Validate the overlay before anything is created or deleted, so a rejected
+// input leaves the existing output (or its absence) untouched. It must be below the working directory, the
+// repository or the temp directory.
+let overlay = null;
+if (overlayArg) {
+  const overlayRoots = [
+    { dir: process.cwd(), self: true },
+    { dir: source, self: false },
+    ...tempDirs,
+  ];
+  const { path: checked, root: overlayRoot } = insideRoots(
+    overlayArg,
+    overlayRoots,
+    "The overlay directory",
+  );
+  refuseLinks(overlayRoot, checked, false);
+  // The overlay is copied into the output, so it must not be the repository (that
+  // would copy .git and .dev.vars), contain the output, or lie inside the output
+  // (which is emptied first).
+  if (isWithin(checked, source) || isWithin(checked, out) || isWithin(out, checked))
+    throw new Error("The overlay directory cannot contain or lie inside the repository or the output.");
+  let overlayInfo;
+  try {
+    overlayInfo = lstatSync(checked);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  // lstat sees a dangling link that existsSync would report as missing.
+  if (overlayInfo?.isSymbolicLink()) throw new Error("Overlay directory cannot be a symbolic link.");
+  if (overlayInfo && !overlayInfo.isDirectory()) throw new Error("The overlay must be a directory.");
+  if (overlayInfo) {
+    try {
+      readdirSync(checked);
+    } catch (error) {
+      throw new Error(`The overlay directory cannot be read: ${error.code}`);
+    }
+    overlay = checked;
+  }
+}
+
+// Nobody else may be able to swap a directory on the way for a link after the
+// checks: every existing directory from the output up to its allowed root must
+// belong to the current user and not be writable by others, and the root itself
+// must not be writable by others either (a sticky directory such as /tmp is
+// fine). The check runs before the output is created and again afterwards.
+const writableByOthers = (mode) => (mode & 0o022) !== 0 && (mode & 0o1000) === 0;
+function checkPrivateDirs() {
+  if (typeof process.getuid !== "function") return;
+  for (let dir = out; dir !== outRoot; dir = dirname(dir)) {
+    let info;
+    try {
+      info = lstatSync(dir);
+    } catch (error) {
+      if (error.code === "ENOENT") continue;
+      throw error;
+    }
+    if (info.uid !== process.getuid())
+      throw new Error(`Refusing to use ${dir}: it belongs to another user.`);
+    if (writableByOthers(info.mode))
+      throw new Error(`Refusing to use ${dir}: other users can write to it (try chmod go-w).`);
+  }
+  let rootInfo;
+  try {
+    rootInfo = statSync(outRoot);
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
+  if (writableByOthers(rootInfo.mode))
+    throw new Error(`Refusing to use ${outRoot}: other users can write to it (try chmod go-w).`);
+}
+
 // Create the directory if needed, after making sure no symbolic link leads out
 // of the allowed directory on the way there.
 refuseLinks(outRoot, out, rootIsOurs);
-mkdirSync(out, { recursive: true });
+checkPrivateDirs();
+mkdirSync(out, { recursive: true, mode: 0o700 });
+checkPrivateDirs();
 const realOut = realpathSync(out);
 const realRoot = realpathSync(outRoot);
 if (realOut !== realRoot && !realOut.startsWith(realRoot + sep))
   throw new Error("Refusing to use an output path that passes through a symbolic link.");
 if (lstatSync(out).isSymbolicLink()) throw new Error("Refusing to replace a symbolic-link output path.");
-// Nobody else may be able to swap a directory on the way for a link after the
-// checks: every directory from the output up to its allowed root must belong to
-// the current user, and the root itself must not be writable by others (unless
-// it is a sticky directory such as /tmp).
-if (typeof process.getuid === "function") {
-  for (let dir = out; dir !== outRoot; dir = dirname(dir))
-    if (lstatSync(dir).uid !== process.getuid())
-      throw new Error(`Refusing to use ${dir}: it belongs to another user.`);
-  const rootMode = lstatSync(realRoot).mode;
-  if (rootMode & 0o022 && !(rootMode & 0o1000))
-    throw new Error(`Refusing to use ${outRoot}: other users can write to it.`);
-}
 const SKIP = new Set(["node_modules", ".wrangler", "dist", "build", "site-docs", ".dev.vars", ".git", ".github"]);
 const TEXT = new Set([
   ".js",
@@ -175,55 +257,6 @@ function parseEnv(file) {
   return values;
 }
 
-const declared = [...parseEnv(join(source, "cloudflare.example.env")).keys()];
-const values =
-  valuesFile === "-"
-    ? new Map(
-        declared
-          .filter((name) => name in process.env)
-          .map((name) => [name, process.env[name].replace(/\\n/g, "\n")]),
-      )
-    : parseEnv(valuesFile);
-const missing = declared.filter((name) => !values.has(name));
-if (missing.length) {
-  console.error(
-    `${valuesFile === "-" ? "the environment" : valuesFile} is missing: ${missing.join(", ")}`,
-  );
-  process.exit(1);
-}
-
-// Validate the overlay before anything is deleted, so a rejected input leaves
-// an existing output untouched. It must be below the working directory, the
-// repository or the temp directory.
-let overlay = null;
-if (overlayArg) {
-  const overlayRoots = [
-    { dir: process.cwd(), self: true },
-    { dir: source, self: false },
-    ...tempDirs,
-  ];
-  const { path: checked, root: overlayRoot } = insideRoots(
-    overlayArg,
-    overlayRoots,
-    "The overlay directory",
-  );
-  refuseLinks(overlayRoot, checked, false);
-  // The overlay is copied into the output, so it must not be the repository (that
-  // would copy .git and .dev.vars), contain the output, or lie inside the output
-  // (which is emptied first).
-  if (isWithin(checked, source) || isWithin(checked, out) || isWithin(out, checked))
-    throw new Error("The overlay directory cannot contain or lie inside the repository or the output.");
-  let overlayInfo;
-  try {
-    overlayInfo = lstatSync(checked);
-  } catch (error) {
-    if (error.code !== "ENOENT") throw error;
-  }
-  // lstat sees a dangling link that existsSync would report as missing.
-  if (overlayInfo?.isSymbolicLink()) throw new Error("Overlay directory cannot be a symbolic link.");
-  if (overlayInfo) overlay = checked;
-}
-
 // Last look before the output is replaced: open it without following a link and
 // check that it is still the same directory that was verified, still below the
 // allowed root and still ours. Every directory above it belongs to the current
@@ -247,7 +280,7 @@ function assertOutputIntact() {
 }
 assertOutputIntact();
 rmSync(out, { recursive: true, force: true });
-mkdirSync(out, { recursive: true });
+mkdirSync(out, { recursive: true, mode: 0o700 });
 assertOutputIntact();
 const keep = (path) => {
   const outRelative = relative(out, path);
@@ -321,6 +354,7 @@ let replaced = 0;
       for (const name of declared) text = text.split(`__${name}__`).join(values.get(name));
       if (entry.name === "wrangler.jsonc") {
         text = text.replace(/\{\s*"pattern":\s*""[^}]*\},?\s*/g, "");
+        text = text.replace(/\{[^{}]*"store_id":\s*""[^{}]*\},?\s*/g, "");
       }
       if (text !== before) {
         // writeSync may write less than asked, so loop until every byte is out.
