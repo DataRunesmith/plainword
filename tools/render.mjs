@@ -50,7 +50,8 @@ const source = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), "..
 function insideRoots(arg, roots, what) {
   const abs = resolve(arg);
   for (const { dir, self } of roots) {
-    if (abs.startsWith(dir + sep)) return { path: abs, root: dir, self };
+    const prefix = dir.endsWith(sep) ? dir : dir + sep;
+    if (abs.startsWith(prefix)) return { path: abs, root: dir, self };
     if (self && abs === dir) return { path: dir, root: dir, self };
   }
   throw new Error(`${what} must be inside one of: ${roots.map((r) => r.dir).join(", ")}`);
@@ -97,6 +98,27 @@ const isWithin = (parent, candidate) => {
 if (isWithin(out, source))
   throw new Error("Output path cannot be the source directory or one of its parent directories.");
 
+// Inside the repository only the generated directories may be used, whatever
+// root matched (the repository itself may lie below the temp directory).
+if (isWithin(source, out)) {
+  const outputRelative = relative(source, out);
+  if (!GENERATED.includes(outputRelative.split(sep)[0]))
+    throw new Error("An output directory inside the repository must be a dedicated generated directory.");
+  try {
+    execFileSync("git", ["check-ignore", "--quiet", "--no-index", "--", outputRelative], {
+      cwd: source,
+      stdio: "ignore",
+    });
+  } catch {
+    throw new Error("An output directory inside the repository must be ignored by Git.");
+  }
+  const trackedFiles = execFileSync("git", ["ls-files", "--", outputRelative], {
+    cwd: source,
+    encoding: "utf8",
+  }).trim();
+  if (trackedFiles) throw new Error("Refusing to delete tracked files from the output directory.");
+}
+
 // Create the directory if needed, after making sure no symbolic link leads out
 // of the allowed directory on the way there.
 refuseLinks(outRoot, out, rootIsOurs);
@@ -117,22 +139,6 @@ if (typeof process.getuid === "function") {
   const rootMode = lstatSync(realRoot).mode;
   if (rootMode & 0o022 && !(rootMode & 0o1000))
     throw new Error(`Refusing to use ${outRoot}: other users can write to it.`);
-}
-if (isWithin(source, out)) {
-  const outputRelative = relative(source, out);
-  try {
-    execFileSync("git", ["check-ignore", "--quiet", "--no-index", "--", outputRelative], {
-      cwd: source,
-      stdio: "ignore",
-    });
-  } catch {
-    throw new Error("An output directory inside the repository must be ignored by Git.");
-  }
-  const trackedFiles = execFileSync("git", ["ls-files", "--", outputRelative], {
-    cwd: source,
-    encoding: "utf8",
-  }).trim();
-  if (trackedFiles) throw new Error("Refusing to delete tracked files from the output directory.");
 }
 const SKIP = new Set(["node_modules", ".wrangler", "dist", "build", "site-docs", ".dev.vars", ".git", ".github"]);
 const TEXT = new Set([
@@ -193,7 +199,7 @@ let overlay = null;
 if (overlayArg) {
   const overlayRoots = [
     { dir: process.cwd(), self: true },
-    { dir: source, self: true },
+    { dir: source, self: false },
     ...tempDirs,
   ];
   const { path: checked, root: overlayRoot } = insideRoots(
@@ -202,6 +208,11 @@ if (overlayArg) {
     "The overlay directory",
   );
   refuseLinks(overlayRoot, checked, false);
+  // The overlay is copied into the output, so it must not be the repository (that
+  // would copy .git and .dev.vars), contain the output, or lie inside the output
+  // (which is emptied first).
+  if (isWithin(checked, source) || isWithin(checked, out) || isWithin(out, checked))
+    throw new Error("The overlay directory cannot contain or lie inside the repository or the output.");
   let overlayInfo;
   try {
     overlayInfo = lstatSync(checked);
