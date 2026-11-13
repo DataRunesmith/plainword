@@ -122,6 +122,8 @@ node tools/render.mjs .cloudflare.env build
 
 Utdatakatalogen måste vara `build` (eller `dist`, `site-docs`, `.wrangler`) i repot eller en katalog under systemets temp-katalog, och en overlay-katalog måste ligga under arbetskatalogen, repot eller temp-katalogen. Verktyget raderar och skriver bara där.
 
+Distribuera med `npx wrangler deploy --cwd build` på den renderade kopian. Skapa D1-databasen själv och skriv in dess namn och ID i värdefilen; tabellerna skapas av filerna i `migrations/`. Adminsidan under `/admin` ska ligga bakom Cloudflare Access.
+
 ```sh
 (cd build && npx wrangler d1 migrations apply DB --local && npx wrangler dev)
 ```
