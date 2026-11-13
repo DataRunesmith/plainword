@@ -114,7 +114,7 @@ if (typeof process.getuid === "function") {
   for (let dir = out; dir !== outRoot; dir = dirname(dir))
     if (lstatSync(dir).uid !== process.getuid())
       throw new Error(`Refusing to use ${dir}: it belongs to another user.`);
-  const rootMode = lstatSync(outRoot).mode;
+  const rootMode = lstatSync(realRoot).mode;
   if (rootMode & 0o022 && !(rootMode & 0o1000))
     throw new Error(`Refusing to use ${outRoot}: other users can write to it.`);
 }
