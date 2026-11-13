@@ -7,7 +7,7 @@
 # The values are the names listed in cloudflare.example.env. They are filled
 # into a temporary copy of the repo, which is deployed and then removed, so no
 # value ends up in a tracked file. The copy also gets the documentation site
-# under /docs (needs python3 with venv; SKIP_DOCS=1 leaves it out), and pending
+# under /docs (needs python3 3.11 or newer with venv; SKIP_DOCS=1 leaves it out), and pending
 # D1 migrations are applied before the Worker is uploaded. Arguments after the
 # values file go to `wrangler deploy`, for example --dry-run.
 set -eu
@@ -78,10 +78,10 @@ cd "$out/app"
 
 if [ "${SKIP_DOCS:-}" = 1 ]; then
   :
-elif python3 -c 'import ensurepip, venv' 2>/dev/null; then
+elif python3 -c 'import sys, ensurepip, venv; sys.exit(sys.version_info < (3, 11))' 2>/dev/null; then
   sh tools/docs-cloudflare.sh public >/dev/null
 else
-  echo "python3 with venv was not found; deploying without the documentation under /docs." >&2
+  echo "python3 3.11 or newer with venv was not found; deploying without the documentation under /docs." >&2
 fi
 
 [ -n "$dry_run" ] || npx wrangler d1 migrations apply DB --remote

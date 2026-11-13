@@ -16,11 +16,12 @@ const declared = [
 // Runs deploy.sh with stand-ins for the package managers and npx, so nothing
 // is installed or uploaded. The npx stand-in records where and how wrangler
 // was called. The documentation build is left out; it needs the network.
-function deploy(args, env = {}) {
+function deploy(args, env = {}, stubs = {}) {
   const dir = mkdtempSync(join(tmpdir(), "deploy-test-"));
   const log = join(dir, "log");
   for (const name of ["npm", "bun"])
     writeFileSync(join(dir, name), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  for (const [name, script] of Object.entries(stubs)) writeFileSync(join(dir, name), script, { mode: 0o755 });
   writeFileSync(
     join(dir, "npx"),
     '#!/bin/sh\n{ pwd; echo "$*"; } >>"$DEPLOY_LOG"\ncp wrangler.jsonc "$DEPLOY_LOG.jsonc"\necho "${CLOUDFLARE_ACCOUNT_ID:-}" >"$DEPLOY_LOG.account"\n',
@@ -32,7 +33,7 @@ function deploy(args, env = {}) {
   const result = spawnSync("sh", [join(root, "tools/deploy.sh"), ...args], {
     cwd: root,
     encoding: "utf8",
-    env: { ...clean, ...env, SKIP_DOCS: "1", PATH: `${dir}:${process.env.PATH}`, DEPLOY_LOG: log },
+    env: { ...clean, SKIP_DOCS: "1", ...env, PATH: `${dir}:${process.env.PATH}`, DEPLOY_LOG: log },
   });
   const called = existsSync(log);
   const lines = called ? readFileSync(log, "utf8").trimEnd().split("\n") : [];
@@ -68,6 +69,15 @@ test("applies migrations and deploys a filled-in temporary copy, then removes it
   assert.doesNotMatch(run.config, /__[A-Z][A-Z0-9_]*__/);
   assert.ok(!run.cwd.startsWith(root), "the copy must live outside the repo");
   assert.ok(!existsSync(run.cwd), "the copy must be removed afterwards");
+});
+
+test("the documentation build is skipped when python3 is older than 3.11", () => {
+  // Succeeds for a bare "import ensurepip, venv" check and fails once a version test is added.
+  const python3 = '#!/bin/sh\ncase "$*" in *version_info*) exit 1 ;; *) exit 0 ;; esac\n';
+  const run = deploy(["cloudflare.example.env", "--dry-run"], { SKIP_DOCS: "" }, { python3 });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stderr, /python3 3\.11 or newer with venv was not found/);
+  assert.deepEqual(run.commands, ["wrangler deploy --dry-run"]);
 });
 
 test("a dry run passes the flag on and leaves the database alone", () => {
@@ -127,11 +137,32 @@ test("the Deploy workflow passes every declared value and the Cloudflare token",
   assert.doesNotMatch(workflow, /^    env:/m);
 });
 
-test("the Deploy workflow only deploys when token, account and host are all set", () => {
+// Runs the guard script the workflow calls and returns what it wrote to GITHUB_OUTPUT.
+function guard(secrets) {
+  const dir = mkdtempSync(join(tmpdir(), "guard-test-"));
+  try {
+    const out = join(dir, "output");
+    writeFileSync(out, "");
+    const env = { PATH: process.env.PATH, GITHUB_OUTPUT: out, ...secrets };
+    const run = spawnSync("sh", [join(root, "tools/check-deploy-secrets.sh")], { env, encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return readFileSync(out, "utf8");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("the Deploy workflow runs the guard script with the three secrets", () => {
   const workflow = readFileSync(join(root, ".github/workflows/deploy.yml"), "utf8");
-  const guard = workflow.slice(workflow.indexOf("  configured:"), workflow.indexOf("  deploy:"));
-  for (const name of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "PUBLIC_HOST"]) {
-    assert.ok(guard.includes(`${name}: \${{ secrets.${name} }}`), `${name} is not read by the guard`);
-    assert.ok(guard.includes(`[ -n "$${name}" ]`), `${name} is not required by the guard`);
+  assert.match(workflow, /run: sh tools\/check-deploy-secrets\.sh\n/);
+  for (const name of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "PUBLIC_HOST"])
+    assert.ok(workflow.includes(`${name}: \${{ secrets.${name} }}`), `${name} is not passed`);
+});
+
+test("the Deploy workflow only deploys when token, account and host are all set", () => {
+  const names = ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "PUBLIC_HOST"];
+  for (let mask = 0; mask < 8; mask++) {
+    const secrets = Object.fromEntries(names.map((name, i) => [name, mask & (1 << i) ? "x" : ""]));
+    assert.equal(guard(secrets), mask === 7 ? "ready=true\n" : "", JSON.stringify(secrets));
   }
 });

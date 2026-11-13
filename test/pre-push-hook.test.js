@@ -13,6 +13,7 @@ test("the pre-push hook is executable and runs the checks CI runs", () => {
     assert.match(text, /^#!\/bin\/sh/);
     assert.match(text, /^set -eu$/m);
     assert.match(text, /^npm test$/m);
+    assert.match(text, /^sh tools\/deploy\.sh cloudflare\.example\.env --dry-run$/m);
     assert.match(text, /^node tools\/check-addresses\.mjs$/m);
   } finally {
     closeSync(fd);
