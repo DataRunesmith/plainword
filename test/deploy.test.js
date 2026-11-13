@@ -126,3 +126,12 @@ test("the Deploy workflow passes every declared value and the Cloudflare token",
   // Only the deploy step sees the values, not the install and test steps.
   assert.doesNotMatch(workflow, /^    env:/m);
 });
+
+test("the Deploy workflow only deploys when token, account and host are all set", () => {
+  const workflow = readFileSync(join(root, ".github/workflows/deploy.yml"), "utf8");
+  const guard = workflow.slice(workflow.indexOf("  configured:"), workflow.indexOf("  deploy:"));
+  for (const name of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "PUBLIC_HOST"]) {
+    assert.ok(guard.includes(`${name}: \${{ secrets.${name} }}`), `${name} is not read by the guard`);
+    assert.ok(guard.includes(`[ -n "$${name}" ]`), `${name} is not required by the guard`);
+  }
+});
