@@ -75,7 +75,7 @@ if (isWithin(source, out)) {
   }).trim();
   if (trackedFiles) throw new Error("Refusing to delete tracked files from the output directory.");
 }
-const SKIP = new Set(["node_modules", ".wrangler", "dist", ".dev.vars", ".git", ".github"]);
+const SKIP = new Set(["node_modules", ".wrangler", "dist", "build", "site-docs", ".dev.vars", ".git", ".github"]);
 const TEXT = new Set([
   ".js",
   ".mjs",
