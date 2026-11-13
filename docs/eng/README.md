@@ -120,6 +120,8 @@ To try it locally without Docker, render a copy with your values and start it:
 node tools/render.mjs .cloudflare.env build
 ```
 
+The output directory must be `build` (or `dist`, `site-docs`, `.wrangler`) in the repository or a directory below the system temp directory, and an overlay directory must be below the working directory, the repository or the temp directory. The tool only deletes and writes there.
+
 ```sh
 (cd build && npx wrangler d1 migrations apply DB --local && npx wrangler dev)
 ```
