@@ -20,7 +20,7 @@ test("renders into a nested directory under build/ without copying build into it
     assert.equal(existsSync(join(root, "build", "render-test", "package.json")), true);
     assert.equal(existsSync(join(root, "build", "render-test", "build")), false);
   } finally {
-    rmSync(join(root, "build"), { recursive: true, force: true });
+    rmSync(join(root, "build", "render-test"), { recursive: true, force: true });
   }
 });
 
@@ -63,7 +63,7 @@ test("refuses an output path that passes through a symbolic link", () => {
     assert.notEqual(result.status, 0);
     assert.equal(existsSync(join(elsewhere, "keep.txt")), true);
   } finally {
-    rmSync(join(root, "build"), { recursive: true, force: true });
+    rmSync(join(root, "build", "link"), { recursive: true, force: true });
     rmSync(dir, { recursive: true, force: true });
   }
 });
