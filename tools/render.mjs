@@ -49,10 +49,32 @@ const source = realpathSync(resolve(dirname(fileURLToPath(import.meta.url)), "..
 function insideRoots(arg, roots, what) {
   const abs = resolve(arg);
   for (const { dir, self } of roots) {
-    if (abs.startsWith(dir + sep)) return { path: abs, root: dir };
-    if (self && abs === dir) return { path: dir, root: dir };
+    if (abs.startsWith(dir + sep)) return { path: abs, root: dir, self };
+    if (self && abs === dir) return { path: dir, root: dir, self };
   }
   throw new Error(`${what} must be inside one of: ${roots.map((r) => r.dir).join(", ")}`);
+}
+// A lexical check says nothing about links on the way, so every existing
+// directory from the root down to the path must be a real directory. The root
+// itself is only checked when asked: the temp directory may be a link set up by
+// the operating system.
+function refuseLinks(root, path, includeRoot) {
+  const dirs = includeRoot ? [root] : [];
+  let dir = root;
+  for (const part of relative(root, path).split(sep).filter(Boolean)) {
+    dir = join(dir, part);
+    dirs.push(dir);
+  }
+  for (const entry of dirs) {
+    let info;
+    try {
+      info = lstatSync(entry);
+    } catch (error) {
+      if (error.code === "ENOENT") return;
+      throw error;
+    }
+    if (info.isSymbolicLink()) throw new Error(`Refusing to use ${entry}: it is a symbolic link.`);
+  }
 }
 const tempDirs = [...new Set([tmpdir(), realpathSync(tmpdir())])].map((dir) => ({ dir, self: false }));
 const GENERATED = ["dist", ".wrangler", "site-docs", "build"];
@@ -62,7 +84,11 @@ const outputRoots = [
   // Where the container image renders the site.
   { dir: "/srv/site", self: true },
 ];
-const { path: out, root: outRoot } = insideRoots(outArg, outputRoots, "The output directory");
+const { path: out, root: outRoot, self: rootIsOurs } = insideRoots(
+  outArg,
+  outputRoots,
+  "The output directory",
+);
 const isWithin = (parent, candidate) => {
   const rel = relative(parent, candidate);
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel));
@@ -70,14 +96,27 @@ const isWithin = (parent, candidate) => {
 if (isWithin(out, source))
   throw new Error("Output path cannot be the source directory or one of its parent directories.");
 
-// Create the directory if needed and make sure no symbolic link led out of
-// the allowed directory on the way there.
+// Create the directory if needed, after making sure no symbolic link leads out
+// of the allowed directory on the way there.
+refuseLinks(outRoot, out, rootIsOurs);
 mkdirSync(out, { recursive: true });
 const realOut = realpathSync(out);
 const realRoot = realpathSync(outRoot);
 if (realOut !== realRoot && !realOut.startsWith(realRoot + sep))
   throw new Error("Refusing to use an output path that passes through a symbolic link.");
 if (lstatSync(out).isSymbolicLink()) throw new Error("Refusing to replace a symbolic-link output path.");
+// Nobody else may be able to swap a directory on the way for a link after the
+// checks: every directory from the output up to its allowed root must belong to
+// the current user, and the root itself must not be writable by others (unless
+// it is a sticky directory such as /tmp).
+if (typeof process.getuid === "function") {
+  for (let dir = out; dir !== outRoot; dir = dirname(dir))
+    if (lstatSync(dir).uid !== process.getuid())
+      throw new Error(`Refusing to use ${dir}: it belongs to another user.`);
+  const rootMode = lstatSync(outRoot).mode;
+  if (rootMode & 0o022 && !(rootMode & 0o1000))
+    throw new Error(`Refusing to use ${outRoot}: other users can write to it.`);
+}
 if (isWithin(source, out)) {
   const outputRelative = relative(source, out);
   try {
@@ -156,7 +195,12 @@ if (overlayArg) {
     { dir: source, self: true },
     ...tempDirs,
   ];
-  const checked = insideRoots(overlayArg, overlayRoots, "The overlay directory").path;
+  const { path: checked, root: overlayRoot } = insideRoots(
+    overlayArg,
+    overlayRoots,
+    "The overlay directory",
+  );
+  refuseLinks(overlayRoot, checked, false);
   let overlayInfo;
   try {
     overlayInfo = lstatSync(checked);
@@ -176,7 +220,9 @@ const keep = (path) => {
   const isOutput = outRelative === "" ||
     (outRelative !== ".." && !outRelative.startsWith(`..${sep}`) && !isAbsolute(outRelative));
   const sourceRelative = relative(source, path);
-  return !isOutput && !sourceRelative.split(sep).some((part) => SKIP.has(part));
+  // A directory that contains the output cannot be copied into itself.
+  return !isOutput && !isWithin(path, out) &&
+    !sourceRelative.split(sep).some((part) => SKIP.has(part));
 };
 for (const name of readdirSync(source)) {
   const path = join(source, name);
@@ -200,7 +246,7 @@ if (overlay) {
       !entry.isDirectory() ||
       entry.name.startsWith(".") ||
       (SKIP.has(entry.name) && entry.name !== "node_modules") ||
-      join(dir, entry.name) === out
+      isWithin(join(dir, entry.name), out)
     )
       continue;
     const path = join(dir, entry.name);
