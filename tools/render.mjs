@@ -129,8 +129,16 @@ if (missing.length) {
 
 // Validate the overlay before anything is deleted, so a rejected input leaves
 // an existing output untouched.
-if (overlayArg && existsSync(overlayArg) && lstatSync(overlayArg).isSymbolicLink())
-  throw new Error("Overlay directory cannot be a symbolic link.");
+if (overlayArg) {
+  let overlayInfo;
+  try {
+    overlayInfo = lstatSync(overlayArg);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  // lstat sees a dangling link that existsSync would report as missing.
+  if (overlayInfo?.isSymbolicLink()) throw new Error("Overlay directory cannot be a symbolic link.");
+}
 
 // Only a dedicated generated output directory (or a path outside the repo)
 // may be replaced. The path and its parent have been canonicalized above.
