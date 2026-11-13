@@ -127,11 +127,35 @@ test("the Deploy workflow passes every declared value and the Cloudflare token",
   assert.doesNotMatch(workflow, /^    env:/m);
 });
 
-test("the Deploy workflow only deploys when token, account and host are all set", () => {
+// Runs the guard's script from the workflow itself with the given secrets and
+// returns what it wrote to GITHUB_OUTPUT.
+function guard(secrets) {
   const workflow = readFileSync(join(root, ".github/workflows/deploy.yml"), "utf8");
-  const guard = workflow.slice(workflow.indexOf("  configured:"), workflow.indexOf("  deploy:"));
-  for (const name of ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "PUBLIC_HOST"]) {
-    assert.ok(guard.includes(`${name}: \${{ secrets.${name} }}`), `${name} is not read by the guard`);
-    assert.ok(guard.includes(`[ -n "$${name}" ]`), `${name} is not required by the guard`);
+  const start = workflow.indexOf("        run: |\n", workflow.indexOf("  configured:"));
+  const end = workflow.indexOf("\n\n  deploy:");
+  assert.ok(start > 0 && end > start, "guard script not found");
+  const script = workflow
+    .slice(start + "        run: |\n".length, end)
+    .split("\n")
+    .map((line) => line.slice(10))
+    .join("\n");
+  const dir = mkdtempSync(join(tmpdir(), "guard-test-"));
+  try {
+    const out = join(dir, "output");
+    writeFileSync(out, "");
+    const env = { PATH: process.env.PATH, GITHUB_OUTPUT: out, ...secrets };
+    const run = spawnSync("sh", ["-c", script], { env, encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    return readFileSync(out, "utf8");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test("the Deploy workflow only deploys when token, account and host are all set", () => {
+  const names = ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "PUBLIC_HOST"];
+  for (let mask = 0; mask < 8; mask++) {
+    const secrets = Object.fromEntries(names.map((name, i) => [name, mask & (1 << i) ? "x" : ""]));
+    assert.equal(guard(secrets), mask === 7 ? "ready=true\n" : "", JSON.stringify(secrets));
   }
 });
