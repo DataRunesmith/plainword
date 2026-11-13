@@ -16,11 +16,12 @@ const declared = [
 // Runs deploy.sh with stand-ins for the package managers and npx, so nothing
 // is installed or uploaded. The npx stand-in records where and how wrangler
 // was called. The documentation build is left out; it needs the network.
-function deploy(args, env = {}) {
+function deploy(args, env = {}, stubs = {}) {
   const dir = mkdtempSync(join(tmpdir(), "deploy-test-"));
   const log = join(dir, "log");
   for (const name of ["npm", "bun"])
     writeFileSync(join(dir, name), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+  for (const [name, script] of Object.entries(stubs)) writeFileSync(join(dir, name), script, { mode: 0o755 });
   writeFileSync(
     join(dir, "npx"),
     '#!/bin/sh\n{ pwd; echo "$*"; } >>"$DEPLOY_LOG"\ncp wrangler.jsonc "$DEPLOY_LOG.jsonc"\necho "${CLOUDFLARE_ACCOUNT_ID:-}" >"$DEPLOY_LOG.account"\n',
@@ -32,7 +33,7 @@ function deploy(args, env = {}) {
   const result = spawnSync("sh", [join(root, "tools/deploy.sh"), ...args], {
     cwd: root,
     encoding: "utf8",
-    env: { ...clean, ...env, SKIP_DOCS: "1", PATH: `${dir}:${process.env.PATH}`, DEPLOY_LOG: log },
+    env: { ...clean, SKIP_DOCS: "1", ...env, PATH: `${dir}:${process.env.PATH}`, DEPLOY_LOG: log },
   });
   const called = existsSync(log);
   const lines = called ? readFileSync(log, "utf8").trimEnd().split("\n") : [];
@@ -68,6 +69,15 @@ test("applies migrations and deploys a filled-in temporary copy, then removes it
   assert.doesNotMatch(run.config, /__[A-Z][A-Z0-9_]*__/);
   assert.ok(!run.cwd.startsWith(root), "the copy must live outside the repo");
   assert.ok(!existsSync(run.cwd), "the copy must be removed afterwards");
+});
+
+test("the documentation build is skipped when python3 is older than 3.11", () => {
+  // Succeeds for a bare "import ensurepip, venv" check and fails once a version test is added.
+  const python3 = '#!/bin/sh\ncase "$*" in *version_info*) exit 1 ;; *) exit 0 ;; esac\n';
+  const run = deploy(["cloudflare.example.env", "--dry-run"], { SKIP_DOCS: "" }, { python3 });
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stderr, /python3 3\.11 or newer with venv was not found/);
+  assert.deepEqual(run.commands, ["wrangler deploy --dry-run"]);
 });
 
 test("a dry run passes the flag on and leaves the database alone", () => {
