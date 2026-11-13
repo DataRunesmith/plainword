@@ -13,7 +13,14 @@ const render = (...args) =>
   });
 const tempDir = () => mkdtempSync(join(tmpdir(), "plainword-render-"));
 
+// build/ may hold someone's work: remove it afterwards only if the test created it.
+const build = join(root, "build");
+const removeIfCreated = (existed) => {
+  if (!existed) rmSync(build, { recursive: true, force: true });
+};
+
 test("renders into a nested directory under build/ without copying build into itself", () => {
+  const existed = existsSync(build);
   try {
     const result = render(join(root, "build", "render-test"));
     assert.equal(result.status, 0, result.stderr);
@@ -21,6 +28,7 @@ test("renders into a nested directory under build/ without copying build into it
     assert.equal(existsSync(join(root, "build", "render-test", "build")), false);
   } finally {
     rmSync(join(root, "build", "render-test"), { recursive: true, force: true });
+    removeIfCreated(existed);
   }
 });
 
@@ -52,6 +60,7 @@ test("refuses output directories outside the allowed ones and deletes nothing", 
 });
 
 test("refuses an output path that passes through a symbolic link", () => {
+  const existed = existsSync(build);
   const dir = tempDir();
   const elsewhere = join(dir, "elsewhere");
   mkdirSync(elsewhere);
@@ -64,6 +73,7 @@ test("refuses an output path that passes through a symbolic link", () => {
     assert.equal(existsSync(join(elsewhere, "keep.txt")), true);
   } finally {
     rmSync(join(root, "build", "link"), { recursive: true, force: true });
+    removeIfCreated(existed);
     rmSync(dir, { recursive: true, force: true });
   }
 });
@@ -82,6 +92,39 @@ test("refuses an overlay that is outside the allowed directories or a symbolic l
     const ok = render(out, real);
     assert.equal(ok.status, 0, ok.stderr);
     assert.equal(existsSync(join(out, "logo.txt")), true);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refuses a symbolic link as the allowed output root", (t) => {
+  if (existsSync(build)) return t.skip("build/ already exists");
+  const dir = tempDir();
+  const elsewhere = join(dir, "elsewhere");
+  mkdirSync(join(elsewhere, "site"), { recursive: true });
+  writeFileSync(join(elsewhere, "site", "keep.txt"), "keep");
+  try {
+    symlinkSync(elsewhere, build);
+    const result = render(join(build, "site"));
+    assert.notEqual(result.status, 0);
+    assert.equal(existsSync(join(elsewhere, "site", "keep.txt")), true);
+  } finally {
+    rmSync(build, { force: true });
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("refuses an overlay that is reached through a symbolic-link directory", () => {
+  const dir = tempDir();
+  const elsewhere = join(dir, "elsewhere", "assets");
+  mkdirSync(elsewhere, { recursive: true });
+  writeFileSync(join(elsewhere, "secret.txt"), "secret");
+  try {
+    symlinkSync(join(dir, "elsewhere"), join(dir, "link"));
+    const out = join(dir, "site");
+    const result = render(out, join(dir, "link", "assets"));
+    assert.notEqual(result.status, 0);
+    assert.equal(existsSync(join(out, "secret.txt")), false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
