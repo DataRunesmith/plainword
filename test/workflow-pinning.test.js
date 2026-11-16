@@ -8,17 +8,19 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 const file = join(import.meta.dirname, "..", ".github", "workflows", "security.yml");
-// Matches `uses:` in block style and in flow mappings such as `- {uses: a/b@v1}`.
+// Matches `uses:` in block style, in flow mappings (`- {uses: a/b@v1}`) and with quoted keys.
 export function actionRefs(text) {
-  return [...text.matchAll(/\buses:\s*["']?([^\s"',}]+)/g)].map((m) => m[1]);
+  return [...text.matchAll(/["']?\buses["']?\s*:\s*["']?([^\s"',}]+)/g)].map((m) => m[1]);
 }
 const uses = actionRefs(readFileSync(file, "utf8"));
 
 test("actionRefs finds block and flow-mapping references", () => {
-  assert.deepEqual(actionRefs("- uses: a/b@v1\n- {uses: c/d@v2, with: {x: 1}}\n- {name: x, uses: \"e/f@v3\"}"), [
+  assert.deepEqual(actionRefs("- uses: a/b@v1\n- {uses: c/d@v2, with: {x: 1}}\n- {name: x, uses: \"e/f@v3\"}\n- {\"uses\": \"g/h@v4\"}\n- {'uses': 'i/j@v5'}"), [
     "a/b@v1",
     "c/d@v2",
     "e/f@v3",
+    "g/h@v4",
+    "i/j@v5",
   ]);
 });
 
