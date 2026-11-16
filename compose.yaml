@@ -9,7 +9,7 @@ services:
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:8787:8787"
     environment:
-      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
+      PUBLIC_HOST: ${PUBLIC_HOST:-}
       ADMIN_TOKEN: ${ADMIN_TOKEN:?Set ADMIN_TOKEN to a long random string}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
