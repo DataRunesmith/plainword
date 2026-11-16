@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
-import worker, { ipv6Prefix } from "../src/worker.js";
+import worker, { clientIp, ipv6Prefix } from "../src/worker.js";
 
 const root = new URL("../", import.meta.url);
 const read = (path) => readFileSync(new URL(path, root), "utf8");
@@ -169,4 +169,33 @@ test("admin ids must be plain decimal numbers", async () => {
     );
     assert.equal(response.status, 400, id);
   }
+});
+
+test("client address header is configurable and defaults to CF-Connecting-IP", () => {
+  const request = new Request("https://example.com/", {
+    headers: { "CF-Connecting-IP": "203.0.113.1", "X-Real-IP": "198.51.100.7" },
+  });
+  assert.equal(clientIp(request, {}), "203.0.113.1");
+  assert.equal(clientIp(request, { CLIENT_IP_HEADER: "X-Real-IP" }), "198.51.100.7");
+  assert.equal(clientIp(request, { CLIENT_IP_HEADER: "  " }), "203.0.113.1");
+});
+
+test("unique term index treats Swedish capitals as duplicates", () => {
+  const { sqlite, files } = migrated();
+  for (const f of files) sqlite.exec(read(`migrations/${f}`));
+  const insert = sqlite.prepare(
+    `INSERT INTO published_terms (term, allmansprak, sprak_kalla_namn, sprak_kalla_url, institution,
+       institution_kalla_namn, institution_kalla_url, skillnad)
+     VALUES (?, 'a', 'n', 'u', 'i', 'n', 'u', 's')`,
+  );
+  insert.run("Ärendetest");
+  assert.throws(() => insert.run("ärendetest"), /UNIQUE/);
+  assert.throws(() => insert.run("ÄRENDETEST"), /UNIQUE/);
+  sqlite.close();
+});
+
+test("container entrypoint refuses a short admin token", () => {
+  const entry = read("docker/entrypoint.sh");
+  assert.match(entry, /\$\{#ADMIN_TOKEN\}" -lt 32/);
+  assert.match(entry, /RATE_LIMIT_KEY/);
 });

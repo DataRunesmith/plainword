@@ -206,6 +206,13 @@ export function ipv6Prefix(ip) {
   return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
 }
 
+// On Cloudflare the client address is CF-Connecting-IP. Self-hosted behind a reverse proxy,
+// set CLIENT_IP_HEADER to the header the proxy overwrites (for example X-Real-IP).
+export function clientIp(request, env) {
+  const name = typeof env?.CLIENT_IP_HEADER === "string" && env.CLIENT_IP_HEADER.trim();
+  return request.headers.get(name || "CF-Connecting-IP");
+}
+
 function timingSafeEqual(a, b) {
   // `a` is the untrusted value. Loop over its length only, so the running time does not
   // reveal the length of the secret `b`; unequal lengths still fail through the XOR.
@@ -257,7 +264,7 @@ async function handleTerms(env) {
 async function verifyTurnstile(request, env, token, expectedAction) {
   if (!env.TURNSTILE_SECRET || !token || typeof token !== "string") return false;
   const body = new URLSearchParams({ secret: env.TURNSTILE_SECRET, response: token });
-  const ip = request.headers.get("CF-Connecting-IP");
+  const ip = clientIp(request, env);
   if (ip) body.set("remoteip", ip);
   try {
     const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
@@ -297,7 +304,7 @@ async function handleSubmit(request, env) {
   if (!(await verifyTurnstile(request, env, body.turnstileToken, "term_submit")))
     return json({ error: "Turnstile-verifieringen misslyckades. Försök igen." }, { status: 403 });
   delete body.turnstileToken;
-  const ip = request.headers.get("CF-Connecting-IP");
+  const ip = clientIp(request, env);
   const identity = await rateLimitIdentity(ip, env.RATE_LIMIT_KEY || env.ADMIN_TOKEN);
   if (!ip || !identity)
     return json({ error: "Rate limit configuration unavailable." }, { status: 503 });
