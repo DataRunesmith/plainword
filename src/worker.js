@@ -207,9 +207,10 @@ export function ipv6Prefix(ip) {
 }
 
 function timingSafeEqual(a, b) {
-  // Walk the longer value so the running time does not reveal the secret's length.
+  // `a` is the untrusted value. Loop over its length only, so the running time does not
+  // reveal the length of the secret `b`; unequal lengths still fail through the XOR.
   let diff = a.length ^ b.length;
-  const n = Math.max(a.length, b.length);
+  const n = a.length;
   for (let i = 0; i < n; i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   return diff === 0;
 }

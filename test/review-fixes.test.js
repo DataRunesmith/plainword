@@ -144,7 +144,9 @@ test("migrations archive the term 'Ö' and repair literal backslash-n in notes",
   sqlite.prepare("UPDATE published_terms SET status = 'published' WHERE term = 'Ö'").run();
   sqlite.prepare("INSERT INTO submissions (term, status, created_at, reviewer_note) VALUES ('T','pending','x','a\\nb')").run();
   sqlite.exec(read(`migrations/${files.find((f) => f.startsWith("0013"))}`));
-  assert.equal(sqlite.prepare("SELECT status FROM published_terms WHERE term = 'Ö'").get()?.status ?? "archived", "archived");
+  const row = sqlite.prepare("SELECT status FROM published_terms WHERE term = 'Ö'").get();
+  assert.ok(row, "the 'Ö' row must still exist");
+  assert.equal(row.status, "archived");
   assert.equal(sqlite.prepare("SELECT reviewer_note FROM submissions WHERE term='T'").get().reviewer_note, "a\nb");
   sqlite.close();
 });
