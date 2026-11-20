@@ -15,6 +15,13 @@ set -eu
 : "${THEME_COOKIE_DOMAIN:=}"
 : "${SITE_FAMILY:=Skog}"
 : "${RELATED_SITE_HTML:=}"
+if [ "${#ADMIN_TOKEN}" -lt 32 ]; then
+  echo "ADMIN_TOKEN must be at least 32 characters (for example: openssl rand -hex 32)." >&2
+  exit 1
+fi
+# Separate key for the rate-limit identity; a random one is used when none is set.
+: "${RATE_LIMIT_KEY:=$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')}"
+export RATE_LIMIT_KEY
 export PUBLIC_HOST ALIAS_HOST TURNSTILE_HOSTNAMES TURNSTILE_SITE_KEY THEME_KEY_PREFIX \
   THEME_COOKIE_DOMAIN SITE_FAMILY RELATED_SITE_HTML
 # Database ids only matter on Cloudflare.
@@ -32,7 +39,7 @@ cp "$app/docker/wrangler.jsonc" "$site/wrangler.jsonc"
 
 vars=$(mktemp)
 chmod 600 "$vars"
-for name in ADMIN_TOKEN RATE_LIMIT_KEY TURNSTILE_SECRET TURNSTILE_HOSTNAMES; do
+for name in ADMIN_TOKEN RATE_LIMIT_KEY CLIENT_IP_HEADER TURNSTILE_SECRET TURNSTILE_HOSTNAMES; do
   value=$(printenv "$name" || true)
   [ -n "$value" ] && printf '%s=%s\n' "$name" "$value" >>"$vars"
 done

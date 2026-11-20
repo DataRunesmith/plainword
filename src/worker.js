@@ -88,12 +88,13 @@ export function isHttpUrl(v) {
   }
 }
 function parsePositiveId(id) {
+  if (!/^\d+$/.test(id)) return null;
   const n = Number(id);
-  return Number.isInteger(n) && n > 0 ? n : null;
+  return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 function duplicateError(error) {
   const message = error instanceof Error ? error.message : String(error);
-  return /unique|constraint/i.test(message);
+  return /UNIQUE constraint failed/i.test(message);
 }
 
 function validateSubmission(body) {
@@ -187,15 +188,37 @@ export async function rateLimitIdentity(ip, secret) {
     false,
     ["sign"],
   );
-  const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(ip));
+  const digest = await crypto.subtle.sign("HMAC", key, encoder.encode(ipv6Prefix(ip)));
   const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
   return `hmac-sha256:${hex}`;
 }
 
+// An IPv6 client usually controls a whole /64, so quota is tracked per /64, not per address.
+export function ipv6Prefix(ip) {
+  if (typeof ip !== "string" || !ip.includes(":") || ip.includes(".")) return ip;
+  const [head, tail = ""] = ip.toLowerCase().split("::");
+  const front = head ? head.split(":") : [];
+  const back = tail ? tail.split(":") : [];
+  const groups = ip.includes("::")
+    ? [...front, ...Array(Math.max(0, 8 - front.length - back.length)).fill("0"), ...back]
+    : front;
+  if (groups.length !== 8) return ip;
+  return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
+}
+
+// On Cloudflare the client address is CF-Connecting-IP. Self-hosted behind a reverse proxy,
+// set CLIENT_IP_HEADER to the header the proxy overwrites (for example X-Real-IP).
+export function clientIp(request, env) {
+  const name = typeof env?.CLIENT_IP_HEADER === "string" && env.CLIENT_IP_HEADER.trim();
+  return request.headers.get(name || "CF-Connecting-IP");
+}
+
 function timingSafeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  // `a` is the untrusted value. Loop over its length only, so the running time does not
+  // reveal the length of the secret `b`; unequal lengths still fail through the XOR.
+  let diff = a.length ^ b.length;
+  const n = a.length;
+  for (let i = 0; i < n; i++) diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
   return diff === 0;
 }
 function checkAdminAuth(request, env) {
@@ -241,7 +264,7 @@ async function handleTerms(env) {
 async function verifyTurnstile(request, env, token, expectedAction) {
   if (!env.TURNSTILE_SECRET || !token || typeof token !== "string") return false;
   const body = new URLSearchParams({ secret: env.TURNSTILE_SECRET, response: token });
-  const ip = request.headers.get("CF-Connecting-IP");
+  const ip = clientIp(request, env);
   if (ip) body.set("remoteip", ip);
   try {
     const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
@@ -276,12 +299,12 @@ async function handleSubmit(request, env) {
   } catch {
     return badRequest("Ogiltig JSON.");
   }
-  if (!(await verifyTurnstile(request, env, body?.turnstileToken, "term_submit")))
-    return json({ error: "Turnstile-verifieringen misslyckades. Försök igen." }, { status: 403 });
-  delete body.turnstileToken;
   const error = validateSubmission(body);
   if (error) return badRequest(error);
-  const ip = request.headers.get("CF-Connecting-IP");
+  if (!(await verifyTurnstile(request, env, body.turnstileToken, "term_submit")))
+    return json({ error: "Turnstile-verifieringen misslyckades. Försök igen." }, { status: 403 });
+  delete body.turnstileToken;
+  const ip = clientIp(request, env);
   const identity = await rateLimitIdentity(ip, env.RATE_LIMIT_KEY || env.ADMIN_TOKEN);
   if (!ip || !identity)
     return json({ error: "Rate limit configuration unavailable." }, { status: 503 });
@@ -356,24 +379,28 @@ async function handleAdminReview(request, env, id) {
   const note = clean(body.note);
   const now = new Date().toISOString();
   if (body.action === "reject") {
-    await env.DB.prepare(
+    const rejected = await env.DB.prepare(
       `UPDATE submissions SET status = 'rejected', reviewed_at = ?, reviewer_note = ? WHERE id = ? AND status = 'pending'`,
     )
       .bind(now, note, submissionId)
       .run();
+    if (!rejected.meta.changes)
+      return json({ error: "Förslaget hittades inte eller är redan granskat." }, { status: 404 });
     return json({ ok: true, status: "rejected", published: false });
   }
   const publicationError = validatePublication(body.publication);
   if (publicationError) return badRequest(publicationError);
   const p = body.publication;
+  let outcome;
   try {
-    await env.DB.batch([
+    outcome = await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO published_terms
           (submission_id, term, rattsomrade, allmansprak, sprak_kalla_namn, sprak_kalla_url,
            institution, institution_kalla_namn, institution_kalla_url, skillnad, notering,
            status, published_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?)`,
+         SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'published', ?, ?
+          WHERE EXISTS (SELECT 1 FROM submissions WHERE id = ? AND status = 'pending')`,
       ).bind(
         submissionId,
         clean(p.term),
@@ -388,6 +415,7 @@ async function handleAdminReview(request, env, id) {
         clean(p.notering),
         now,
         now,
+        submissionId,
       ),
       env.DB.prepare(
         `UPDATE submissions SET status = 'approved', reviewed_at = ?, reviewer_note = ? WHERE id = ? AND status = 'pending'`,
@@ -401,6 +429,8 @@ async function handleAdminReview(request, env, id) {
       );
     throw error;
   }
+  if (!outcome?.[0]?.meta?.changes)
+    return json({ error: "Förslaget hittades inte eller är redan granskat." }, { status: 404 });
   return json({ ok: true, status: "approved", published: true });
 }
 
@@ -495,7 +525,9 @@ export default {
     const { pathname } = url;
     if (ALIAS_HOSTNAME && url.hostname === ALIAS_HOSTNAME) {
       url.hostname = CANONICAL_HOST;
-      return Response.redirect(url.toString(), 301);
+      // 308 keeps the method and body of non-GET requests; 301 lets clients turn them into GET.
+      const idempotent = request.method === "GET" || request.method === "HEAD";
+      return Response.redirect(url.toString(), idempotent ? 301 : 308);
     }
     if (isD1ApiRoute(request.method, pathname)) {
       if ((request.method === "POST" || request.method === "PUT") && await requestBodyTooLarge(request)) {
