@@ -9,8 +9,10 @@ services:
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:8787:8787"
     environment:
-      PUBLIC_HOST: ${PUBLIC_HOST:-localhost}
-      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set ADMIN_TOKEN to a long random string}
+      PUBLIC_HOST: ${PUBLIC_HOST:-}
+      ADMIN_TOKEN: ${ADMIN_TOKEN:?Set ADMIN_TOKEN to a random string of at least 32 characters}
+      # Header your reverse proxy overwrites with the client address (default CF-Connecting-IP).
+      CLIENT_IP_HEADER: ${CLIENT_IP_HEADER:-}
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:-}
       TURNSTILE_SECRET: ${TURNSTILE_SECRET:-}
     volumes:
