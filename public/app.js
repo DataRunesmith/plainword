@@ -25,12 +25,28 @@ function sourceLink(source) {
     ? `<a class="source-link" href="${escapeHtml(source.url)}" rel="noopener noreferrer" target="_blank">Källa: ${escapeHtml(source.namn)} ↗</a>`
     : "";
 }
+function searchText(t) {
+  return [
+    t.term,
+    t.rattsomrade,
+    t.allmansprak,
+    t.institution,
+    t.skillnad,
+    t.not,
+    t.kallorOchExempel,
+    t.sprakKalla?.namn,
+    t.institutionKalla?.namn,
+  ]
+    .filter((v) => typeof v === "string")
+    .join(" ")
+    .toLocaleLowerCase("sv");
+}
 function render() {
   const q = search.value.trim().toLocaleLowerCase("sv");
   const items = TERMS.filter(
     (t) =>
       (activeArea === "Alla" || (t.rattsomrade || "Annat") === activeArea) &&
-      (!q || JSON.stringify(t).toLocaleLowerCase("sv").includes(q)),
+      (!q || searchText(t).includes(q)),
   );
   count.textContent = `${items.length} av ${TERMS.length} publicerade poster`;
   if (!items.length) {
@@ -107,13 +123,15 @@ form.addEventListener("submit", async (e) => {
     const data = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     form.reset();
-    if (window.turnstile) window.turnstile.reset();
     formMessage.textContent =
       "Tack. Förslaget ligger i granskningskön. Om det godkänns blir det publikt automatiskt.";
     formMessage.hidden = false;
   } catch (err) {
     formMessage.textContent = err instanceof Error ? err.message : "Kunde inte skicka förslaget.";
     formMessage.hidden = false;
+  } finally {
+    // Turnstile tokens are single use; the server consumes them even when the form is rejected.
+    if (window.turnstile) window.turnstile.reset();
   }
 });
 loadTerms();
